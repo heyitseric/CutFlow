@@ -1,66 +1,50 @@
 import logging
+import os
 import xml.etree.ElementTree as ET
-from fractions import Fraction
 
 from app.models.schemas import AlignedSegment, SegmentStatus
 
 logger = logging.getLogger(__name__)
 
 
-def _frame_duration(frame_rate: float) -> tuple[int, int]:
-    """Return (numerator, denominator) for frame duration as rational time.
+def _frame_duration_str(frame_rate: float) -> str:
+    """Return frameDuration string for the <format> element.
 
-    For NTSC rates the canonical durations are:
-        29.97 fps -> 1001/30000 s
-        23.976 fps -> 1001/24000 s
-        59.94 fps -> 1001/60000 s
-    Integer rates use 1/<fps> s.
+    NTSC rates use canonical durations:
+        29.97 fps -> 1001/30000s
+        23.976 fps -> 1001/24000s
+        59.94 fps -> 1001/60000s
+    Integer rates use 1/<fps>s.
     """
     if abs(frame_rate - 29.97) < 0.01:
-        return (1001, 30000)
+        return "1001/30000s"
     elif abs(frame_rate - 23.976) < 0.01:
-        return (1001, 24000)
+        return "1001/24000s"
     elif abs(frame_rate - 59.94) < 0.01:
-        return (1001, 60000)
+        return "1001/60000s"
     else:
-        fps = round(frame_rate)
-        return (1, fps)
+        return f"1/{round(frame_rate)}s"
 
 
-def _seconds_to_rational(seconds: float, frame_rate: float) -> str:
-    """Convert seconds to FCPXML rational time string.
+def _get_time_base(frame_rate: float) -> int:
+    """Return the integer time base used for all clip timing strings.
 
-    Example: 15.0 s at 30 fps -> "450/30s" (= 15.0 s expressed as
-    frame-count * frame-duration-numerator / denominator).
+    For NTSC rates, use the nearest integer fps (e.g. 29.97 -> 30).
+    For integer rates, use the rate directly.
     """
-    if seconds <= 0:
-        return "0/1s"
-
-    fd_num, fd_den = _frame_duration(frame_rate)
-
-    # Convert to Fraction for exact arithmetic
-    sec = Fraction(seconds).limit_denominator(1000000)
-    frame_dur = Fraction(fd_num, fd_den)
-
-    # Total frames (rounded to nearest)
-    total_frames = round(float(sec / frame_dur))
-
-    # Rational time = total_frames * fd_num / fd_den
-    numerator = total_frames * fd_num
-
-    return f"{numerator}/{fd_den}s"
+    if abs(frame_rate - 29.97) < 0.01:
+        return 30
+    elif abs(frame_rate - 23.976) < 0.01:
+        return 24
+    elif abs(frame_rate - 59.94) < 0.01:
+        return 60
+    else:
+        return round(frame_rate)
 
 
-def _apply_buffer(
-    start: float,
-    end: float,
-    buffer_duration: float,
-    audio_duration: float,
-) -> tuple[float, float]:
-    """Extend segment boundaries by buffer_duration, clamped to valid range."""
-    buffered_start = max(0.0, start - buffer_duration)
-    buffered_end = min(audio_duration, end + buffer_duration) if audio_duration > 0 else end + buffer_duration
-    return buffered_start, buffered_end
+def seconds_to_frames(seconds: float, fps: float) -> int:
+    """Convert seconds to frame count, matching the reference skill exactly."""
+    return int(round(seconds * fps))
 
 
 def generate_fcpxml(
@@ -72,87 +56,53 @@ def generate_fcpxml(
     video_filename: str | None = None,
     buffer_duration: float = 0.0,
 ) -> str:
-    """Generate FCPXML v1.9 for import into Final Cut Pro / JianYing.
+    """Generate FCPXML v1.11 for import into Final Cut Pro / JianYing.
 
-    Structure (v1.9, widely supported):
-
-        <fcpxml version="1.9">
-          <resources>
-            <format id="r1" .../>
-            <asset id="r2" ...>
-              <media-rep kind="original-media" src="..."/>
-            </asset>
-          </resources>
-          <library>
-            <event name="...">
-              <project name="...">
-                <sequence format="r1" duration="...">
-                  <spine>
-                    <asset-clip ref="r2" offset="..." start="..." duration="..."/>
-                    ...
-                  </spine>
-                </sequence>
-              </project>
-            </event>
-          </library>
-        </fcpxml>
-
-    Each aligned segment becomes an asset-clip on the spine.
-    - `start`    = source IN point (where in the original media)
-    - `duration` = clip length
-    - `offset`   = position on the output timeline (cumulative)
-
-    When video_filename is provided, the asset references a video file
-    with hasVideo="1" so FCP can relink to the actual footage.
+    Structure matches the proven reference skill that works in JianYing:
+    - version 1.11
+    - format with name attribute
+    - simple {frames}/{fps}s timing
+    - asset-clip with format and tcFormat attributes
     """
-    fd_num, fd_den = _frame_duration(frame_rate)
-    frame_dur_str = f"{fd_num}/{fd_den}s"
+    fps = _get_time_base(frame_rate)
+    frame_dur_str = _frame_duration_str(frame_rate)
 
     # Always use a video asset so editors (e.g. JianYing) show exactly ONE
-    # file to relink.  Derive the video filename from the audio filename
-    # when the caller didn't supply one.
+    # file to relink.
     if video_filename:
         media_filename = video_filename
     else:
         stem = audio_filename.rsplit(".", 1)[0] if "." in audio_filename else audio_filename
         media_filename = f"{stem}.mp4"
 
+    source_name = os.path.splitext(media_filename)[0]
+    source_total_frames = seconds_to_frames(audio_duration, fps) if audio_duration > 0 else 0
+
     # ── Root ──
-    fcpxml = ET.Element("fcpxml", version="1.9")
+    fcpxml = ET.Element("fcpxml", version="1.11")
 
     # ── Resources ──
     resources = ET.SubElement(fcpxml, "resources")
 
-    # Format resource (video dimensions are required even for audio-only)
+    # Format resource — includes name attribute for JianYing compatibility
     ET.SubElement(resources, "format", {
         "id": "r1",
+        "name": f"FFVideoFormat1080p{fps}",
         "frameDuration": frame_dur_str,
         "width": "1920",
         "height": "1080",
     })
 
-    # Media asset — src directly on <asset> (no <media-rep> child).
-    # JianYing treats <media-rep> as a second media reference, causing
-    # two files to appear in the relink dialog.  Putting src on the
-    # asset itself avoids this.
-    media_dur_str = (
-        _seconds_to_rational(audio_duration, frame_rate)
-        if audio_duration > 0
-        else "0/1s"
-    )
-    # Use a single absolute-path placeholder so JianYing sees exactly ONE
-    # media reference to relink.  A relative "file://./..." URL is malformed
-    # and causes JianYing to create two entries in its relink dialog.
-    media_name_no_ext = media_filename.rsplit(".", 1)[0] if "." in media_filename else media_filename
+    # Media asset — src directly on <asset>, no <media-rep> child
     ET.SubElement(resources, "asset", {
         "id": "r2",
-        "name": media_name_no_ext,
+        "name": source_name,
         "src": f"file:///path/to/{media_filename}",
         "start": "0/1s",
-        "duration": media_dur_str,
+        "duration": f"{source_total_frames}/{fps}s",
+        "format": "r1",
         "hasVideo": "1",
         "hasAudio": "1",
-        "format": "r1",
         "audioSources": "1",
         "audioChannels": "2",
         "audioRate": "44100",
@@ -174,40 +124,42 @@ def generate_fcpxml(
     ]
     active.sort(key=lambda s: s.script_index)
 
-    # Apply buffer and compute total duration
+    # Buffer is already applied by apply_buffer() in the pipeline.
+    # Just clamp to valid range — do NOT re-apply buffer_duration here.
     buffered_segments: list[tuple[AlignedSegment, float, float]] = []
     for s in active:
-        b_start, b_end = _apply_buffer(s.start_time, s.end_time, buffer_duration, audio_duration)
+        b_start = max(0.0, s.start_time)
+        b_end = min(audio_duration, s.end_time) if audio_duration > 0 else s.end_time
         if b_end - b_start > 0:
             buffered_segments.append((s, b_start, b_end))
 
     total_duration = sum(end - start for _, start, end in buffered_segments)
-    total_dur_str = _seconds_to_rational(total_duration, frame_rate)
+    total_frames = seconds_to_frames(total_duration, fps)
 
     sequence = ET.SubElement(project, "sequence", {
         "format": "r1",
-        "duration": total_dur_str,
+        "duration": f"{total_frames}/{fps}s",
         "tcStart": "0/1s",
-        "tcFormat": "DF" if abs(frame_rate - 29.97) < 0.01 else "NDF",
+        "tcFormat": "NDF",
     })
 
     spine = ET.SubElement(sequence, "spine")
 
     # ── Clips ──
-    record_pos = 0.0
-    for seg, b_start, b_end in buffered_segments:
+    tl_offset = 0  # timeline offset in frames
+    for i, (seg, b_start, b_end) in enumerate(buffered_segments):
         duration = b_end - b_start
-
-        offset_str = _seconds_to_rational(record_pos, frame_rate)
-        start_str = _seconds_to_rational(b_start, frame_rate)
-        dur_str = _seconds_to_rational(duration, frame_rate)
+        src_start = seconds_to_frames(b_start, fps)
+        src_dur = seconds_to_frames(duration, fps)
 
         clip = ET.SubElement(spine, "asset-clip", {
+            "name": f"{source_name} - Clip {i + 1}",
             "ref": "r2",
-            "offset": offset_str,
-            "name": f"Segment {seg.script_index}",
-            "start": start_str,
-            "duration": dur_str,
+            "offset": f"{tl_offset}/{fps}s",
+            "start": f"{src_start}/{fps}s",
+            "duration": f"{src_dur}/{fps}s",
+            "format": "r1",
+            "tcFormat": "NDF",
         })
 
         # Add note for reordered segments
@@ -215,7 +167,7 @@ def generate_fcpxml(
             note = ET.SubElement(clip, "note")
             note.text = f"REORDERED from position {seg.original_position}"
 
-        record_pos += duration
+        tl_offset += src_dur
 
     # ── Serialize ──
     ET.indent(fcpxml, space="  ")

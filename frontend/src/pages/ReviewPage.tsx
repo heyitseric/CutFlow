@@ -122,7 +122,7 @@ export default function ReviewPage() {
 
           {/* Explanation text */}
           <p className="mt-2 text-sm text-text-muted leading-relaxed">
-            以下是脚本与音频的匹配结果。请检查每段是否正确对应，不需要的段落取消勾选即可。
+            以下是脚本和音频的匹配结果。绿色表示匹配准确，黄色需注意，红色建议检查。不需要的段落取消「保留」即可。
           </p>
 
           {/* Summary stats */}

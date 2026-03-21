@@ -268,7 +268,7 @@ export default function ProcessingPage() {
 
   useEffect(() => {
     if (status === 'completed' && id) {
-      const timer = setTimeout(() => navigate(`/review/${id}`), 1200);
+      const timer = setTimeout(() => navigate(`/review/${id}`), 2500);
       return () => clearTimeout(timer);
     }
   }, [status, id, navigate]);
@@ -448,7 +448,7 @@ export default function ProcessingPage() {
             {/* Percentage — show "准备中..." when 0 and not yet started */}
             <div className="mt-2 text-center">
               <span className="font-mono text-xs text-text-muted">
-                {pct === 0 && !isComplete && !isFailed ? '准备中...' : `${pct}%`}
+                {pct === 0 && !isComplete && !isFailed ? '正在启动处理流程...' : `${pct}%`}
               </span>
             </div>
 
@@ -474,7 +474,7 @@ export default function ProcessingPage() {
                 onClick={() => navigate('/')}
                 className="mt-4 rounded-xl bg-danger/10 px-5 py-2 text-sm font-medium text-danger hover:bg-danger/20 transition-colors"
               >
-                返回重试
+                重新上传
               </button>
             </div>
           )}
@@ -486,7 +486,7 @@ export default function ProcessingPage() {
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                处理完成，即将跳转至审核页面...
+                处理完成！正在进入审核页面...
               </div>
             </div>
           )}

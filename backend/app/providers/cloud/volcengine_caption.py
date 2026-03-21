@@ -203,7 +203,11 @@ class VolcengineCaptionTranscriber(Transcriber):
 
     @staticmethod
     def _parse_response(data: dict, language: str) -> TranscriptionResult:
-        duration = float(data.get("duration", 0.0))
+        raw_duration = float(data.get("duration", 0.0))
+        # The API returns duration in milliseconds (same as start_time/end_time)
+        # but we need seconds for consistency with the rest of the pipeline.
+        # Heuristic: if the value is > 1000, it's likely milliseconds.
+        duration = raw_duration / 1000.0 if raw_duration > 1000 else raw_duration
         utterances = data.get("utterances", [])
 
         segments: list[TranscriptionSegment] = []

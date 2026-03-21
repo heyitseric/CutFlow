@@ -110,11 +110,17 @@ class VolcEngineMatcher(Matcher):
 
     @staticmethod
     def _format_timestamp(seconds: float) -> str:
-        """Convert seconds to [HH:MM:SS] format."""
+        """Convert seconds to [HH:MM:SS.s] format with 1-decimal precision.
+
+        Sub-second precision is critical: the LLM reads these timestamps and
+        returns start_time / end_time values.  Integer-second precision
+        (the old format) caused up to 1s of error, which for Chinese speech
+        (~3-5 chars/s) means wrong word ranges and garbled cut points.
+        """
         h = int(seconds // 3600)
         m = int((seconds % 3600) // 60)
-        s = int(seconds % 60)
-        return f"[{h:02d}:{m:02d}:{s:02d}]"
+        s = seconds % 60
+        return f"[{h:02d}:{m:02d}:{s:04.1f}]"
 
     def _build_timestamped_transcript(
         self, transcript_segments: list[dict]
@@ -178,21 +184,44 @@ class VolcEngineMatcher(Matcher):
     def _time_to_word_indices(
         self, start_time: float, end_time: float, all_words: list[dict]
     ) -> tuple[int, int]:
-        """Map start/end times (seconds) to word indices."""
-        start_word_idx = 0
-        end_word_idx = len(all_words)
+        """Map start/end times (seconds) to word indices.
 
-        # Find first word that starts at or after start_time
+        Strategy: find all words that *overlap* with the [start_time, end_time]
+        window.  A word overlaps if its interval intersects the query interval,
+        i.e. word.start < end_time AND word.end > start_time.
+
+        This is more robust than the previous approach which could miss words
+        when the LLM-returned times had limited precision.
+        """
+        if not all_words:
+            return 0, 0
+
+        tolerance = 0.15  # seconds — forgive small LLM rounding errors
+
+        start_word_idx = len(all_words)
+        end_word_idx = 0
+
         for idx, w in enumerate(all_words):
-            if w["start"] >= start_time - 0.05:
-                start_word_idx = idx
-                break
+            w_start = w["start"]
+            w_end = w["end"]
+            # Word overlaps the query window?
+            if w_start < end_time + tolerance and w_end > start_time - tolerance:
+                if idx < start_word_idx:
+                    start_word_idx = idx
+                if idx + 1 > end_word_idx:
+                    end_word_idx = idx + 1
 
-        # Find last word that ends at or before end_time
-        for idx in range(len(all_words) - 1, -1, -1):
-            if all_words[idx]["end"] <= end_time + 0.05:
-                end_word_idx = idx + 1
-                break
+        # If no overlap found, fall back to nearest word by start_time
+        if start_word_idx >= end_word_idx:
+            best_idx = 0
+            best_dist = float("inf")
+            for idx, w in enumerate(all_words):
+                dist = abs(w["start"] - start_time)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_idx = idx
+            start_word_idx = best_idx
+            end_word_idx = best_idx + 1
 
         return start_word_idx, end_word_idx
 
@@ -220,9 +249,10 @@ class VolcEngineMatcher(Matcher):
             "请为脚本中的每个句子找到对应的转录片段时间范围。\n"
             "输出JSON数组，每个元素包含：\n"
             '  - "script_index": int（脚本句子编号）\n'
-            '  - "start_time": float（对应转录的开始时间，秒）\n'
-            '  - "end_time": float（对应转录的结束时间，秒）\n'
+            '  - "start_time": float（对应转录的开始时间，秒，保留1位小数）\n'
+            '  - "end_time": float（对应转录的结束时间，秒，保留1位小数）\n'
             '  - "score": int（匹配置信度 0-100）\n\n'
+            "start_time和end_time请直接使用转录片段时间戳中的数值（含小数），不要取整。\n"
             "如果某句在转录中找不到对应，score设为0。\n"
             "注意：脚本开头几句可能是从后面复制到前面的'钩子'，不要假设脚本顺序等于时间顺序。\n\n"
             "只返回合法的JSON数组，不要输出其他内容。"

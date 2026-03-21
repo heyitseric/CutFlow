@@ -50,12 +50,13 @@ def generate_edl(
     event_num = 1
 
     for seg in active:
-        # Apply buffer to segment boundaries
-        b_start = max(0.0, seg.start_time - buffer_duration)
+        # Buffer is already applied by apply_buffer() in the pipeline.
+        # Just clamp to valid range — do NOT re-apply buffer_duration here.
+        b_start = max(0.0, seg.start_time)
         b_end = (
-            min(audio_duration, seg.end_time + buffer_duration)
+            min(audio_duration, seg.end_time)
             if audio_duration > 0
-            else seg.end_time + buffer_duration
+            else seg.end_time
         )
         duration = b_end - b_start
         if duration <= 0:

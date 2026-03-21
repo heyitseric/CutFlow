@@ -60,7 +60,7 @@ export default function UploadPage() {
         <div className="grid gap-6 md:grid-cols-2 animate-fade-in-up delay-1">
           <FileDropZone
             accept=".md,.markdown,.txt"
-            label="脚本文件（.md）"
+            label="脚本文件（.md / .txt）"
             file={scriptFile}
             onFile={handleScriptFile}
             icon={
@@ -72,7 +72,7 @@ export default function UploadPage() {
 
           <FileDropZone
             accept=".mp3,.wav,.m4a"
-            label="音频文件（.mp3）"
+            label="音频文件（.mp3 / .wav / .m4a）"
             file={audioFile}
             onFile={setAudioFile}
             icon={
@@ -163,6 +163,7 @@ export default function UploadPage() {
               )}
             </label>
           </div>
+          <p className="mt-3 text-xs text-text-muted">推荐使用云端模型，速度更快且精度更高</p>
         </div>
 
         {/* Error message */}
@@ -202,6 +203,11 @@ export default function UploadPage() {
               </>
             )}
           </button>
+          {(!scriptFile || !audioFile) && !uploading && (
+            <p className="mt-3 text-xs text-text-muted">
+              {!scriptFile ? '请先上传脚本文件' : '请先上传音频文件'}
+            </p>
+          )}
         </div>
       </PageContainer>
     </>

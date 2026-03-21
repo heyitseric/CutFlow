@@ -55,11 +55,11 @@ export default function SegmentRow({
             className="inline-flex items-center gap-0.5 rounded-md bg-purple-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-purple-400 shrink-0"
             title={
               segment.copySourceIndex != null
-                ? `Hook: 复制自第 ${segment.copySourceIndex + 1} 句`
-                : 'Hook 复制'
+                ? `开头钩子 · 复制自第 ${segment.copySourceIndex + 1} 句（正常现象）`
+                : '开头钩子（正常现象）'
             }
           >
-            Hook
+            钩子
           </span>
         )}
 
@@ -79,7 +79,16 @@ export default function SegmentRow({
 
         {/* Right side: confidence + keep checkbox */}
         <div className="ml-auto flex items-center gap-4">
-          <span className={`font-mono text-xs font-semibold ${confidenceColorClass}`}>
+          <span
+            className={`font-mono text-xs font-semibold ${confidenceColorClass}`}
+            title={
+              pct >= 85
+                ? '匹配准确'
+                : pct >= 60
+                  ? '基本匹配，建议检查'
+                  : '匹配较差，建议仔细核对'
+            }
+          >
             {pct}%
           </span>
 

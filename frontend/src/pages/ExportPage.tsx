@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import PageContainer from '../components/layout/PageContainer';
 import Stepper from '../components/layout/Stepper';
 import { exportJob, downloadExportFile } from '../api/client';
@@ -9,13 +9,14 @@ import type { ExportRequest } from '../api/types';
 const FRAME_RATES = [23.976, 24, 25, 29.97, 30];
 
 const FORMAT_INFO: Record<string, { label: string; desc: string }> = {
-  edl: { label: 'EDL', desc: 'Premiere / Resolve' },
-  fcpxml: { label: 'FCPXML', desc: 'Final Cut Pro' },
-  srt: { label: 'SRT', desc: '通用字幕' },
+  edl: { label: 'EDL', desc: '适用于 Premiere、DaVinci Resolve' },
+  fcpxml: { label: 'FCPXML', desc: '适用于 Final Cut Pro、剪映' },
+  srt: { label: 'SRT', desc: '字幕文件，可导入任何播放器' },
 };
 
 export default function ExportPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const setActiveJob = useJobStore((s) => s.setActiveJob);
   const audioName = useJobStore((s) => (id && s.jobs[id]) ? s.jobs[id].audioName : '');
   const scriptName = useJobStore((s) => (id && s.jobs[id]) ? s.jobs[id].scriptName : '');
@@ -102,6 +103,12 @@ export default function ExportPage() {
       <Stepper currentStep={3} jobId={id} />
       <PageContainer>
         <div className="mb-10 text-center animate-fade-in-up">
+          <button
+            onClick={() => navigate(`/review/${id}`)}
+            className="mb-4 text-xs text-text-muted hover:text-text-secondary transition-colors"
+          >
+            ← 返回审核
+          </button>
           <h1 className="font-display text-3xl font-bold tracking-tight text-text-primary">导出</h1>
           <p className="mt-3 text-sm text-text-secondary">选择格式和参数，导出剪辑文件</p>
         </div>
@@ -148,12 +155,13 @@ export default function ExportPage() {
                 </button>
               ))}
             </div>
+            <p className="text-xs text-text-muted mt-2">不确定？大多数视频使用 30 或 25 帧率</p>
           </div>
 
           {/* Buffer duration */}
           <div className="animate-fade-in-up delay-3 rounded-2xl border border-border bg-surface p-5">
             <div className="mb-4 flex items-baseline justify-between">
-              <h3 className="font-display text-sm font-semibold text-text-secondary">缓冲时长</h3>
+              <h3 className="font-display text-sm font-semibold text-text-secondary">缓冲时长（防误切）</h3>
               <span className="font-mono text-sm text-amber">{buffer.toFixed(2)}s</span>
             </div>
             <input
@@ -169,6 +177,7 @@ export default function ExportPage() {
               <span>0s</span>
               <span>0.5s</span>
             </div>
+            <p className="text-xs text-text-muted mt-2">在每段前后保留少量余量，方便后续微调</p>
           </div>
 
           {/* Subtitle source */}
