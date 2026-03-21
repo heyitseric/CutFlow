@@ -65,6 +65,10 @@ class JobData:
         self.elapsed_seconds: float = 0.0
         self.estimated_remaining_seconds: Optional[float] = None
 
+        # --- Sub-task tracking ---
+        # Dict mapping sub-task key -> status ("pending" | "in_progress" | "completed")
+        self.sub_tasks: dict[str, str] = {}
+
     def update(
         self,
         state: Optional[JobState] = None,
@@ -74,6 +78,7 @@ class JobData:
         stage_name: Optional[str] = None,
         stage_detail: Optional[str] = None,
         estimated_remaining_seconds: Any = _UNSET,
+        sub_tasks: Optional[dict[str, str]] = None,
     ):
         if state is not None:
             self.state = state
@@ -91,6 +96,8 @@ class JobData:
             self.estimated_remaining_seconds = _sanitize_float(
                 estimated_remaining_seconds
             )
+        if sub_tasks is not None:
+            self.sub_tasks.update(sub_tasks)
 
         # Update elapsed time if pipeline has started
         if self.pipeline_start_time > 0:
@@ -138,6 +145,7 @@ class JobManager:
         stage_name: Optional[str] = None,
         stage_detail: Optional[str] = None,
         estimated_remaining_seconds: Any = _UNSET,
+        sub_tasks: Optional[dict[str, str]] = None,
     ) -> Optional[JobData]:
         """Update job state."""
         job = self._jobs.get(job_id)
@@ -150,6 +158,7 @@ class JobManager:
                 stage_name=stage_name,
                 stage_detail=stage_detail,
                 estimated_remaining_seconds=estimated_remaining_seconds,
+                sub_tasks=sub_tasks,
             )
         return job
 

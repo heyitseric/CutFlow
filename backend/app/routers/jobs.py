@@ -144,6 +144,8 @@ async def job_status_stream(job_id: str, request: Request):
                     "estimated_remaining_seconds": _safe_round_or_none(
                         live_remaining
                     ),
+                    # Sub-task statuses
+                    "sub_tasks": dict(job.sub_tasks) if job.sub_tasks else {},
                 }
 
                 yield {

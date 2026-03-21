@@ -1,4 +1,4 @@
-import type { JobResponse, JobSummary, SSEStatusData, DictionaryData, DictionaryEntry, ExportRequest } from './types';
+import type { AlignedSegment, PauseSegment, JobResponse, JobSummary, SSEStatusData, DictionaryData, DictionaryEntry, ExportRequest } from './types';
 
 const BASE = '/api';
 
@@ -59,8 +59,72 @@ interface BackendJobResponse {
   updated_at: string;
   script_filename: string;
   audio_filename: string;
-  alignment: JobResponse['alignment'];
+  alignment: BackendAlignedSegment[] | null;
   transcription: unknown;
+}
+
+/** Backend uses snake_case for AlignedSegment fields */
+interface BackendPauseSegment {
+  start: number;
+  end: number;
+  duration: number;
+  pause_type: string;
+  action: string;
+}
+
+interface BackendAlignedSegment {
+  script_index: number;
+  script_text: string;
+  transcript_text: string;
+  start_time: number;
+  end_time: number;
+  raw_start_time: number;
+  raw_end_time: number;
+  confidence: number;
+  confidence_level: string;
+  status: string;
+  is_reordered: boolean;
+  original_position: number | null;
+  pauses: BackendPauseSegment[];
+}
+
+/** Map backend snake_case alignment data to frontend camelCase types */
+function mapAlignment(segments: BackendAlignedSegment[] | null): AlignedSegment[] | null {
+  if (!segments) return null;
+  return segments.map((seg) => ({
+    scriptIndex: seg.script_index,
+    scriptText: seg.script_text,
+    transcriptText: seg.transcript_text ?? '',
+    startTime: seg.start_time ?? 0,
+    endTime: seg.end_time ?? 0,
+    rawStartTime: seg.raw_start_time ?? 0,
+    rawEndTime: seg.raw_end_time ?? 0,
+    confidence: seg.confidence ?? 0,
+    confidenceLevel: (seg.confidence_level ?? 'low') as AlignedSegment['confidenceLevel'],
+    status: mapSegmentStatus(seg.status),
+    isReordered: seg.is_reordered ?? false,
+    originalPosition: seg.original_position ?? null,
+    pauses: (seg.pauses ?? []).map((p) => ({
+      start: p.start,
+      end: p.end,
+      duration: p.duration,
+      pauseType: (p.pause_type ?? 'natural') as PauseSegment['pauseType'],
+      action: (p.action ?? 'keep') as PauseSegment['action'],
+    })),
+  }));
+}
+
+/** Map backend segment status values to frontend status values */
+function mapSegmentStatus(status: string): AlignedSegment['status'] {
+  // Backend uses: matched, copy, deleted, unmatched, approved, rejected
+  // Frontend uses: auto_approved, needs_review, approved, rejected
+  switch (status) {
+    case 'approved': return 'approved';
+    case 'rejected': return 'rejected';
+    case 'matched': return 'auto_approved';
+    case 'copy': return 'auto_approved';
+    default: return 'needs_review';
+  }
 }
 
 function mapBackendState(state: string): string {
@@ -76,7 +140,7 @@ export async function getJob(jobId: string): Promise<JobResponse & { scriptName:
     status: mapBackendState(raw.state),
     progress: raw.progress,
     audioDuration: null,
-    alignment: raw.alignment,
+    alignment: mapAlignment(raw.alignment),
     error: raw.state === 'error' ? raw.message : null,
     scriptName: raw.script_filename,
     audioName: raw.audio_filename,
@@ -102,6 +166,7 @@ export interface SSEMappedData {
     progress: number;
     elapsed_seconds: number;
     estimated_remaining_seconds: number | null;
+    sub_tasks?: Record<string, string>;
   };
 }
 
@@ -134,6 +199,7 @@ export function connectJobSSE(
           progress: raw.progress,
           elapsed_seconds: raw.elapsed_seconds,
           estimated_remaining_seconds: raw.estimated_remaining_seconds,
+          sub_tasks: raw.sub_tasks,
         },
       };
       onMessage(mapped);

@@ -61,6 +61,8 @@ export interface ProgressEvent {
   progress: number;
   elapsed_seconds: number;
   estimated_remaining_seconds: number | null;
+  /** Sub-task key -> status ("pending" | "in_progress" | "completed") */
+  sub_tasks?: Record<string, string>;
 }
 
 export interface ExportRequest {
@@ -93,4 +95,6 @@ export interface SSEStatusData {
   stage_detail: string;
   elapsed_seconds: number;
   estimated_remaining_seconds: number | null;
+  /** Sub-task key -> status ("pending" | "in_progress" | "completed") */
+  sub_tasks?: Record<string, string>;
 }

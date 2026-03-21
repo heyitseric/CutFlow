@@ -34,8 +34,8 @@ const STAGE_SUBTASKS: Record<number, SubTask[]> = {
     { key: 'load_dict', label: '加载自定义词典' },
   ],
   2: [
-    { key: 'init_dict', label: '初始化字典服务' },
-    { key: 'load_whisper', label: '加载 Whisper 模型' },
+    { key: 'init_engine', label: '初始化转录引擎' },
+    { key: 'load_model', label: '加载 Whisper 模型' },
   ],
   3: [
     { key: 'transcribe', label: '音频转录' },
@@ -63,83 +63,55 @@ const STAGE_SUBTASKS: Record<number, SubTask[]> = {
   ],
 };
 
-// ── Sub-task status inference from stage_detail ──
-
-/** Keywords map: sub-task key -> patterns that indicate this sub-task is active or done */
-const SUBTASK_KEYWORDS: Record<string, string[]> = {
-  // Stage 1
-  read_md: ['解析脚本文件'],
-  extract_sentences: ['提取', '句'],
-  load_dict: ['词典', '字典'],
-  // Stage 2
-  init_dict: ['字典服务', '初始化字典'],
-  load_whisper: ['Whisper', '模型', '转录模型', '下载'],
-  // Stage 3
-  transcribe: ['转录', '转写'],
-  vad: ['语音活动', 'VAD', '活动检测'],
-  segments: ['分段', '段'],
-  // Stage 4
-  init_matcher: ['匹配器', '准备匹配'],
-  fuzzy_match: ['匹配脚本', '模糊', '匹配文本'],
-  llm_match: ['LLM', '智能匹配'],
-  verify: ['验证', '匹配候选', '匹配完成'],
-  // Stage 5
-  detect_pauses: ['检测', '停顿'],
-  mark_errors: ['标记', '口误'],
-  // Stage 6
-  align: ['对齐', '校准'],
-  buffer: ['缓冲'],
-  // Stage 7
-  apply_buffer: ['应用缓冲'],
-  gen_results: ['匹配', '结果', '处理完成'],
-  preview: ['预览'],
-};
+// ── Sub-task status resolution ──
 
 type SubTaskStatus = 'completed' | 'active' | 'pending';
 
-function inferSubTaskStatuses(
+/**
+ * Resolve sub-task statuses from backend-provided sub_tasks map.
+ * Falls back to stage-level status when backend data is unavailable.
+ */
+function resolveSubTaskStatuses(
   stageId: number,
   stageStatus: 'done' | 'active' | 'pending',
-  detail: string,
+  backendSubTasks: Record<string, string> | undefined,
 ): Record<string, SubTaskStatus> {
   const subtasks = STAGE_SUBTASKS[stageId];
   if (!subtasks) return {};
 
   const result: Record<string, SubTaskStatus> = {};
 
+  // If the whole stage is done, all sub-tasks are completed
   if (stageStatus === 'done') {
     for (const st of subtasks) result[st.key] = 'completed';
     return result;
   }
 
+  // If the stage hasn't started yet, all sub-tasks are pending
   if (stageStatus === 'pending') {
     for (const st of subtasks) result[st.key] = 'pending';
     return result;
   }
 
-  // Stage is active — infer from detail text
-  // Find the last sub-task whose keywords appear in the detail string
-  let activeIndex = 0;
-  for (let i = 0; i < subtasks.length; i++) {
-    const keywords = SUBTASK_KEYWORDS[subtasks[i].key] ?? [];
-    for (const kw of keywords) {
-      if (detail.includes(kw)) {
-        activeIndex = i;
-        break;
+  // Stage is active — use backend sub-task data if available
+  if (backendSubTasks) {
+    for (const st of subtasks) {
+      const backendStatus = backendSubTasks[st.key];
+      if (backendStatus === 'completed') {
+        result[st.key] = 'completed';
+      } else if (backendStatus === 'in_progress') {
+        result[st.key] = 'active';
+      } else {
+        result[st.key] = 'pending';
       }
     }
+    return result;
   }
 
+  // Fallback: no backend data, mark first sub-task as active
   for (let i = 0; i < subtasks.length; i++) {
-    if (i < activeIndex) {
-      result[subtasks[i].key] = 'completed';
-    } else if (i === activeIndex) {
-      result[subtasks[i].key] = 'active';
-    } else {
-      result[subtasks[i].key] = 'pending';
-    }
+    result[subtasks[i].key] = i === 0 ? 'active' : 'pending';
   }
-
   return result;
 }
 
@@ -306,7 +278,7 @@ export default function ProcessingPage() {
                 const subtasks = STAGE_SUBTASKS[stage.id] ?? [];
                 const hasSubtasks = subtasks.length > 0;
                 const isExpanded = expandedStages.has(stage.id);
-                const subtaskStatuses = inferSubTaskStatuses(stage.id, stageStatus, stageDetail);
+                const subtaskStatuses = resolveSubTaskStatuses(stage.id, stageStatus, stageProgress?.sub_tasks);
 
                 return (
                   <li key={stage.id} className="transition-all duration-500">

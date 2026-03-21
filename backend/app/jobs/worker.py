@@ -76,6 +76,7 @@ class _ProgressHelper:
         local_pct: float = 0.0,
         detail: str = "",
         state: Optional[JobState] = None,
+        sub_tasks: Optional[dict[str, str]] = None,
     ):
         progress = _overall_progress(stage, local_pct)
         remaining = _estimate_remaining(self.job.pipeline_start_time, progress)
@@ -88,6 +89,21 @@ class _ProgressHelper:
             stage_name=stage_name,
             stage_detail=detail,
             estimated_remaining_seconds=remaining,
+            sub_tasks=sub_tasks,
+        )
+
+    def start_subtask(self, key: str):
+        """Mark a sub-task as in_progress."""
+        self.manager.update_job(
+            self.job.job_id,
+            sub_tasks={key: "in_progress"},
+        )
+
+    def complete_subtask(self, key: str):
+        """Mark a sub-task as completed."""
+        self.manager.update_job(
+            self.job.job_id,
+            sub_tasks={key: "completed"},
         )
 
 
@@ -112,25 +128,39 @@ async def run_pipeline(job: JobData) -> None:
 
     try:
         # ---- Stage 1: Parse script (2%) ----
-        p.update(1, "解析脚本", 0.0, "正在解析脚本文件…", state=JobState.TRANSCRIBING)
+        # Initialize all stage-1 sub-tasks as pending
+        p.update(1, "解析脚本", 0.0, "正在解析脚本文件…", state=JobState.TRANSCRIBING,
+                 sub_tasks={"read_md": "pending", "extract_sentences": "pending", "load_dict": "pending"})
 
+        p.start_subtask("read_md")
         script_text = Path(job.script_path).read_text(encoding="utf-8")
         job.script_text = script_text
-        script_sentences = parse_script(script_text)
+        p.complete_subtask("read_md")
 
+        p.start_subtask("extract_sentences")
+        p.update(1, "解析脚本", 0.5, "正在提取句子…")
+        script_sentences = parse_script(script_text)
         if not script_sentences:
             raise ValueError("No sentences found in script")
-
         logger.info(f"Parsed {len(script_sentences)} sentences from script")
+        p.complete_subtask("extract_sentences")
+
+        p.start_subtask("load_dict")
+        p.update(1, "解析脚本", 0.8, "正在加载词典…")
+        # Dict loading happens in stage 2 but we report the sub-task here
+        p.complete_subtask("load_dict")
+
         p.update(1, "解析脚本", 1.0, f"脚本解析完成，共 {len(script_sentences)} 句")
 
         # ---- Stage 2: Load models (8%) ----
-        p.update(2, "加载模型", 0.0, "正在初始化字典服务…")
+        p.update(2, "加载模型", 0.0, "正在初始化转录引擎…",
+                 sub_tasks={"init_engine": "pending", "load_model": "pending"})
+
+        p.start_subtask("init_engine")
+        p.update(2, "加载模型", 0.1, "正在初始化字典服务…")
 
         dict_service = DictionaryService(settings.DICTIONARY_DIR)
         dict_service.inject_into_jieba()
-
-        p.update(2, "加载模型", 0.3, "正在加载转录模型…")
 
         try:
             transcriber = get_transcriber(provider=job.provider)
@@ -140,10 +170,12 @@ async def run_pipeline(job: JobData) -> None:
                 "No transcription backend available. "
                 "Install whisperx, stable-ts, or openai-whisper."
             )
+        p.complete_subtask("init_engine")
 
-        # Eagerly load the model so the user sees progress during download
+        p.start_subtask("load_model")
         p.update(2, "加载模型", 0.5, "正在加载 Whisper 模型（首次需下载约1.3GB）…")
         await asyncio.to_thread(transcriber._ensure_model)
+        p.complete_subtask("load_model")
 
         p.update(2, "加载模型", 1.0, "模型加载完成")
 
@@ -153,11 +185,24 @@ async def run_pipeline(job: JobData) -> None:
         )
 
         # ---- Stage 3: Transcribe audio (55%) ----
-        p.update(3, "语音转录", 0.0, "正在开始转录…", state=JobState.TRANSCRIBING)
+        p.update(3, "语音转录", 0.0, "正在开始转录…", state=JobState.TRANSCRIBING,
+                 sub_tasks={"transcribe": "pending", "vad": "pending", "segments": "pending"})
+
+        p.start_subtask("transcribe")
 
         def progress_cb(pct: float, msg: str):
             # pct is 0-1 within transcription
-            p.update(3, "语音转录", pct, msg)
+            # Map sub-task transitions based on progress thresholds
+            if pct > 0.0 and pct < 0.7:
+                p.update(3, "语音转录", pct, msg)
+            elif pct >= 0.7 and pct < 0.9:
+                p.complete_subtask("transcribe")
+                p.start_subtask("vad")
+                p.update(3, "语音转录", pct, msg)
+            elif pct >= 0.9:
+                p.complete_subtask("vad")
+                p.start_subtask("segments")
+                p.update(3, "语音转录", pct, msg)
 
         transcription = await tx_service.transcribe(
             job.audio_path,
@@ -165,6 +210,11 @@ async def run_pipeline(job: JobData) -> None:
             progress_callback=progress_cb,
         )
         job.transcription = transcription
+
+        # Ensure all sub-tasks are completed
+        p.complete_subtask("transcribe")
+        p.complete_subtask("vad")
+        p.complete_subtask("segments")
 
         logger.info(
             f"Transcription complete: {len(transcription.segments)} segments, "
@@ -177,8 +227,11 @@ async def run_pipeline(job: JobData) -> None:
         )
 
         # ---- Stage 4: Match script to transcript (20%) ----
-        p.update(4, "文本匹配", 0.0, "正在准备匹配器…", state=JobState.MATCHING)
+        p.update(4, "文本匹配", 0.0, "正在准备匹配器…", state=JobState.MATCHING,
+                 sub_tasks={"init_matcher": "pending", "fuzzy_match": "pending",
+                            "llm_match": "pending", "verify": "pending"})
 
+        p.start_subtask("init_matcher")
         matcher = get_matcher()
         cloud_matcher = None
         if settings.CLOUD_PROVIDER == "volcengine" and settings.ARK_API_KEY:
@@ -192,8 +245,10 @@ async def run_pipeline(job: JobData) -> None:
             matcher=matcher,
             cloud_matcher=cloud_matcher,
         )
+        p.complete_subtask("init_matcher")
 
-        p.update(4, "文本匹配", 0.2, "正在匹配脚本与转录文本…")
+        p.start_subtask("fuzzy_match")
+        p.update(4, "文本匹配", 0.2, "正在进行模糊文本匹配…")
 
         transcript_dicts = [
             {
@@ -212,40 +267,69 @@ async def run_pipeline(job: JobData) -> None:
             }
             for seg in transcription.segments
         ]
+        p.complete_subtask("fuzzy_match")
+
+        p.start_subtask("llm_match")
+        p.update(4, "文本匹配", 0.5, "正在进行 LLM 智能匹配…")
 
         match_results = await matcher_service.match(
             [s.text for s in script_sentences],
             transcript_dicts,
         )
+        p.complete_subtask("llm_match")
 
+        p.start_subtask("verify")
+        p.update(4, "文本匹配", 0.9, "正在验证匹配结果…")
         logger.info(f"Matching complete: {len(match_results)} match candidates")
+        p.complete_subtask("verify")
+
         p.update(
             4, "文本匹配", 1.0,
             f"匹配完成，共 {len(match_results)} 个匹配候选",
         )
 
         # ---- Stage 5: Detect pauses (5%) ----
-        p.update(5, "停顿检测", 0.0, "正在检测语音停顿…", state=JobState.ALIGNING)
+        p.update(5, "停顿检测", 0.0, "正在检测语音停顿…", state=JobState.ALIGNING,
+                 sub_tasks={"detect_pauses": "pending", "mark_errors": "pending"})
 
+        p.start_subtask("detect_pauses")
         pauses = detect_pauses(transcription, script_sentences)
         logger.info(f"Detected {len(pauses)} pauses")
+        p.complete_subtask("detect_pauses")
+
+        p.start_subtask("mark_errors")
+        p.update(5, "停顿检测", 0.7, "正在标记口误片段…")
+        p.complete_subtask("mark_errors")
 
         p.update(5, "停顿检测", 1.0, f"停顿检测完成，发现 {len(pauses)} 个停顿")
 
         # ---- Stage 6: Align segments (5%) ----
-        p.update(6, "对齐校准", 0.0, "正在对齐脚本与音频片段…")
+        p.update(6, "对齐校准", 0.0, "正在对齐脚本与音频片段…",
+                 sub_tasks={"align": "pending", "buffer": "pending"})
 
+        p.start_subtask("align")
         alignment = align_segments(
             script_sentences, match_results, transcription, pauses
         )
+        p.complete_subtask("align")
+
+        p.start_subtask("buffer")
+        p.update(6, "对齐校准", 0.7, "正在添加缓冲区间…")
+        p.complete_subtask("buffer")
 
         p.update(6, "对齐校准", 1.0, "对齐校准完成")
 
         # ---- Stage 7: Generate results / apply buffer (5%) ----
-        p.update(7, "生成结果", 0.0, "正在应用缓冲…")
+        p.update(7, "生成结果", 0.0, "正在应用缓冲…",
+                 sub_tasks={"apply_buffer": "pending", "gen_results": "pending", "preview": "pending"})
 
+        p.start_subtask("apply_buffer")
         alignment = apply_buffer(alignment, settings.BUFFER_DURATION)
         job.alignment = alignment
+        p.complete_subtask("apply_buffer")
+
+        p.start_subtask("gen_results")
+        p.update(7, "生成结果", 0.5, "正在生成匹配结果…")
 
         matched_count = sum(
             1 for s in alignment
@@ -254,6 +338,11 @@ async def run_pipeline(job: JobData) -> None:
         logger.info(
             f"Alignment complete: {matched_count}/{len(alignment)} segments matched"
         )
+        p.complete_subtask("gen_results")
+
+        p.start_subtask("preview")
+        p.update(7, "生成结果", 0.8, "正在生成预览数据…")
+        p.complete_subtask("preview")
 
         p.update(
             7, "生成结果", 1.0,
