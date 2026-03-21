@@ -4,6 +4,7 @@ interface AudioPlayerState {
   playing: boolean;
   currentTime: number;
   duration: number;
+  error: string | null;
 }
 
 /**
@@ -18,11 +19,13 @@ export function useAudioPlayer(audioUrl: string | null) {
     playing: false,
     currentTime: 0,
     duration: 0,
+    error: null,
   });
 
   // create / swap audio element when url changes
   useEffect(() => {
     if (!audioUrl) return;
+    setState((s) => ({ ...s, error: null }));
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
 
@@ -31,6 +34,16 @@ export function useAudioPlayer(audioUrl: string | null) {
     });
     audio.addEventListener('ended', () => {
       setState((s) => ({ ...s, playing: false }));
+    });
+    audio.addEventListener('error', () => {
+      const code = audio.error?.code;
+      const msg =
+        code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED ? '音频格式不支持'
+        : code === MediaError.MEDIA_ERR_NETWORK ? '音频加载失败（网络错误）'
+        : code === MediaError.MEDIA_ERR_DECODE ? '音频解码失败'
+        : '音频加载失败';
+      console.error('[useAudioPlayer] Audio error:', audio.error);
+      setState((s) => ({ ...s, playing: false, error: msg }));
     });
 
     return () => {

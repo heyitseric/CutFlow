@@ -16,14 +16,18 @@ def apply_buffer(
     - Extends start time backward and end time forward by buffer_duration
     - Prevents overlap between adjacent segments
     - Only applies to active (non-deleted) segments
+    - Returns a NEW list of deep-copied segments (originals are not mutated)
     """
     if buffer_duration <= 0:
         settings = get_settings()
         buffer_duration = settings.BUFFER_DURATION
 
+    # Deep-copy all segments so we never mutate the caller's data
+    result = [seg.model_copy(deep=True) for seg in segments]
+
     # Filter to only active segments and sort by start time
     active = [
-        s for s in segments
+        s for s in result
         if s.status not in (SegmentStatus.DELETED, SegmentStatus.UNMATCHED)
     ]
     active.sort(key=lambda s: s.start_time)
@@ -54,12 +58,4 @@ def apply_buffer(
             active[i].end_time = midpoint
             active[i + 1].start_time = midpoint
 
-    # Update the original segments list
-    active_map = {s.script_index: s for s in active}
-    for seg in segments:
-        if seg.script_index in active_map:
-            updated = active_map[seg.script_index]
-            seg.start_time = updated.start_time
-            seg.end_time = updated.end_time
-
-    return segments
+    return result

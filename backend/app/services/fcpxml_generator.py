@@ -140,18 +140,22 @@ def generate_fcpxml(
         if audio_duration > 0
         else "0/1s"
     )
+    # Use a single absolute-path placeholder so JianYing sees exactly ONE
+    # media reference to relink.  A relative "file://./..." URL is malformed
+    # and causes JianYing to create two entries in its relink dialog.
+    media_name_no_ext = media_filename.rsplit(".", 1)[0] if "." in media_filename else media_filename
     ET.SubElement(resources, "asset", {
         "id": "r2",
-        "name": media_filename,
-        "src": f"file://./{media_filename}",
+        "name": media_name_no_ext,
+        "src": f"file:///path/to/{media_filename}",
         "start": "0/1s",
         "duration": media_dur_str,
-        "hasAudio": "1",
         "hasVideo": "1",
+        "hasAudio": "1",
         "format": "r1",
         "audioSources": "1",
         "audioChannels": "2",
-        "audioRate": "48000",
+        "audioRate": "44100",
     })
 
     # ── Library > Event > Project > Sequence > Spine ──

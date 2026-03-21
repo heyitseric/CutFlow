@@ -280,7 +280,7 @@ export function getExportDownloadUrl(jobId: string, format: string): string {
   return `${BASE}/jobs/${jobId}/export/download?format=${format}`;
 }
 
-export async function downloadExportFile(jobId: string, format: string): Promise<void> {
+export async function downloadExportFile(jobId: string, format: string, baseName?: string): Promise<void> {
   const url = getExportDownloadUrl(jobId, format);
   const res = await fetch(url);
   if (!res.ok) {
@@ -288,7 +288,9 @@ export async function downloadExportFile(jobId: string, format: string): Promise
     throw new Error(`Download failed ${res.status}: ${body}`);
   }
   const blob = await res.blob();
-  const filename = `${jobId}.${format}`;
+  // Use the provided baseName (script filename stem) if available, otherwise fall back to jobId
+  const stem = baseName ? baseName.replace(/\.[^.]+$/, '') : jobId;
+  const filename = `${stem}.${format}`;
   const blobUrl = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = blobUrl;

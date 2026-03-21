@@ -121,8 +121,18 @@ async def download_export(job_id: str, format: str):
 @router.get("/downloads/{job_id}/{filename}")
 async def download_file(job_id: str, filename: str):
     """Serve generated export files (legacy URL)."""
+    # Security: prevent path traversal
+    if '..' in filename or '/' in filename or '\\' in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    if '..' in job_id or '/' in job_id or '\\' in job_id:
+        raise HTTPException(status_code=400, detail="Invalid job ID")
+
     settings = get_settings()
-    file_path = settings.OUTPUT_DIR / job_id / filename
+    file_path = (settings.OUTPUT_DIR / job_id / filename).resolve()
+
+    # Ensure resolved path stays within OUTPUT_DIR
+    if not str(file_path).startswith(str(settings.OUTPUT_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid path")
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")

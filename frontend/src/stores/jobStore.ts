@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { AlignedSegment, JobSummary, PauseSegment, ProgressEvent } from '../api/types';
-import { listJobs } from '../api/client';
+import { listJobs, updateSegment as patchSegment } from '../api/client';
 
 // ── Per-job state ──
 
@@ -201,9 +201,9 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
 
   // ── Segment editing (scoped to active job) ──
 
-  updateSegment: (index, updates) =>
+  updateSegment: (index, updates) => {
+    const jobId = get().activeJobId;
     set((state) => {
-      const jobId = state.activeJobId;
       if (!jobId || !state.jobs[jobId]) return {};
       const job = state.jobs[jobId];
       const next = new Map(job.editedSegments);
@@ -212,7 +212,14 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
       return {
         jobs: { ...state.jobs, [jobId]: { ...job, editedSegments: next } },
       };
-    }),
+    });
+    // Fire-and-forget: persist to backend
+    if (jobId) {
+      patchSegment(jobId, index, updates as Record<string, unknown>).catch((err) => {
+        console.error('[jobStore] Failed to persist segment update:', err);
+      });
+    }
+  },
 
   approveSegment: (index) => get().updateSegment(index, { status: 'approved' }),
 

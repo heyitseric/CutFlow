@@ -18,6 +18,7 @@ export default function ExportPage() {
   const { id } = useParams<{ id: string }>();
   const setActiveJob = useJobStore((s) => s.setActiveJob);
   const audioName = useJobStore((s) => (id && s.jobs[id]) ? s.jobs[id].audioName : '');
+  const scriptName = useJobStore((s) => (id && s.jobs[id]) ? s.jobs[id].scriptName : '');
 
   useEffect(() => {
     if (id) setActiveJob(id);
@@ -82,7 +83,7 @@ export default function ExportPage() {
     if (!id) return;
     setDownloading(format);
     try {
-      await downloadExportFile(id, format);
+      await downloadExportFile(id, format, scriptName || undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : '下载失败');
     } finally {

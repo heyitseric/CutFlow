@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useJobStore } from '../../stores/jobStore';
 import type { SingleJobState } from '../../stores/jobStore';
 
@@ -47,7 +47,6 @@ function jobRoute(job: SingleJobState): string {
 
 export default function Sidebar() {
   const navigate = useNavigate();
-  const location = useLocation();
 
   const jobs = useJobStore((s) => s.jobs);
   const activeJobId = useJobStore((s) => s.activeJobId);
