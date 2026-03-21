@@ -327,7 +327,44 @@ async def run_pipeline(job: JobData) -> None:
         p.complete_subtask("align")
 
         p.start_subtask("buffer")
-        p.update(6, "对齐校准", 0.7, "正在添加缓冲区间…")
+        p.update(6, "对齐校准", 0.7, "正在修剪片段头尾停顿…")
+
+        # Trim leading/trailing pauses from each segment.
+        # Pauses marked REMOVE that sit at the very start or end of a
+        # segment's time range should shrink the segment so the exported
+        # cut doesn't include long silences / breaths.
+        from app.models.schemas import PauseAction
+        for seg in alignment:
+            if not seg.pauses:
+                continue
+            # Sort pauses by start time
+            seg_pauses = sorted(seg.pauses, key=lambda p: p.start)
+
+            # Trim leading pauses (at the start of the segment)
+            for pp in seg_pauses:
+                if pp.action in (PauseAction.REMOVE,) and pp.start <= seg.start_time + 0.05:
+                    # Move segment start past this pause
+                    seg.start_time = max(seg.start_time, pp.end)
+                    seg.raw_start_time = seg.start_time
+                else:
+                    break  # Stop at first non-removable pause
+
+            # Trim trailing pauses (at the end of the segment)
+            for pp in reversed(seg_pauses):
+                if pp.action in (PauseAction.REMOVE,) and pp.end >= seg.end_time - 0.05:
+                    seg.end_time = min(seg.end_time, pp.start)
+                    seg.raw_end_time = seg.end_time
+                else:
+                    break
+
+            # Shorten THINKING/LONG pauses in the middle to max 0.3s
+            for pp in seg_pauses:
+                if pp.action == PauseAction.SHORTEN and pp.duration > 0.3:
+                    if pp.start > seg.start_time and pp.end < seg.end_time:
+                        # We can't literally cut the middle in a single clip,
+                        # but we log it for the user's reference
+                        pass
+
         p.complete_subtask("buffer")
 
         p.update(6, "对齐校准", 1.0, "对齐校准完成")

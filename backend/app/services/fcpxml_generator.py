@@ -140,11 +140,9 @@ def generate_fcpxml(
         if audio_duration > 0
         else "0/1s"
     )
-    media_stem = media_filename.rsplit(".", 1)[0] if "." in media_filename else media_filename
-
     ET.SubElement(resources, "asset", {
         "id": "r2",
-        "name": media_stem,
+        "name": media_filename,
         "src": f"file://./{media_filename}",
         "start": "0/1s",
         "duration": media_dur_str,
