@@ -1,6 +1,8 @@
 import logging
 from typing import Optional
 
+from rapidfuzz import fuzz
+
 from app.config import get_settings
 from app.models.schemas import (
     AlignedSegment,
@@ -13,6 +15,65 @@ from app.models.schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Hook / copy detection
+# ---------------------------------------------------------------------------
+# A "hook" is a script line near the beginning that is a textual copy of a
+# line that appears later in the script.  Video editors place hooks at the
+# start to grab viewer attention; the audio for the hook comes from the
+# middle/end of the recording.
+#
+# Detection strategy:
+#   1. For each of the first N script lines, compare its text against all
+#      later script lines using fuzzy matching.
+#   2. If a later line has >=THRESHOLD similarity, the early line is a hook
+#      copy of the later (original) line.
+#   3. Mark the early line as is_copy=True with copy_source_index pointing
+#      to the later line's script index.
+# ---------------------------------------------------------------------------
+
+_HOOK_SCAN_RANGE = 10          # only check the first N script lines
+_HOOK_SIMILARITY_THRESHOLD = 80  # rapidfuzz score 0-100
+
+
+def detect_hooks(
+    script_sentences: list[ScriptSentence],
+) -> dict[int, int]:
+    """
+    Return a mapping of {hook_script_index: original_script_index} for
+    script lines that are copies of later lines.
+
+    Only the first ``_HOOK_SCAN_RANGE`` lines are candidates for being
+    hooks, but the "original" can be anywhere after the hook.
+    """
+    hooks: dict[int, int] = {}  # hook_idx -> original_idx
+    n = len(script_sentences)
+    scan_end = min(_HOOK_SCAN_RANGE, n)
+
+    for i in range(scan_end):
+        hook_text = script_sentences[i].text
+        best_score = 0.0
+        best_j = -1
+
+        for j in range(i + 1, n):
+            candidate_text = script_sentences[j].text
+            score = fuzz.token_set_ratio(hook_text, candidate_text)
+            if score > best_score:
+                best_score = score
+                best_j = j
+
+        if best_score >= _HOOK_SIMILARITY_THRESHOLD and best_j >= 0:
+            hooks[script_sentences[i].index] = script_sentences[best_j].index
+            logger.info(
+                "Hook detected: script line %d is a copy of line %d "
+                "(similarity %.0f%%)",
+                script_sentences[i].index,
+                script_sentences[best_j].index,
+                best_score,
+            )
+
+    return hooks
 
 
 def _classify_confidence(score: float) -> ConfidenceLevel:
@@ -121,9 +182,11 @@ def align_segments(
     1. Select best match for each script sentence
     2. Use dynamic programming for global optimal matching
     3. Detect reordering via LIS
-    4. Mark reordered segments as COPY
-    5. Mark unmatched script sentences as DELETED
-    6. Classify confidence levels
+    4. Detect hook/copy lines (early lines that duplicate later lines)
+    5. For hook copies, reuse timecodes from the original's match
+    6. Mark reordered segments as COPY
+    7. Mark unmatched script sentences as DELETED
+    8. Classify confidence levels
     """
     if pauses is None:
         pauses = []
@@ -139,8 +202,29 @@ def align_segments(
                 "confidence": w.confidence,
             })
 
+    # Step 0: Detect hooks (script-level, before matching)
+    hooks = detect_hooks(script_sentences)
+    if hooks:
+        logger.info("Detected %d hook/copy lines: %s", len(hooks), hooks)
+
     # Step 1: Select best matches
     best_matches = _select_best_matches(match_results, len(script_sentences))
+
+    # For hook lines: if the hook itself wasn't matched well but the original
+    # was, copy the original's match result to the hook so it gets the same
+    # audio timecodes.
+    for hook_idx, orig_idx in hooks.items():
+        orig_match = best_matches.get(orig_idx)
+        if orig_match is not None:
+            hook_match = best_matches.get(hook_idx)
+            # Use original's match if hook has no match or a worse match
+            if hook_match is None or hook_match.score < orig_match.score:
+                best_matches[hook_idx] = MatchResult(
+                    script_index=hook_idx,
+                    transcript_start_word_idx=orig_match.transcript_start_word_idx,
+                    transcript_end_word_idx=orig_match.transcript_end_word_idx,
+                    score=orig_match.score,
+                )
 
     # Step 2: DP alignment
     optimized = _dynamic_programming_alignment(
@@ -148,8 +232,11 @@ def align_segments(
     )
 
     # Step 3: Detect reordering with LIS
-    # Build list of (script_index, transcript_position) sorted by script order
-    matched_script_indices = sorted(optimized.keys())
+    # Exclude hook copies from LIS computation so they don't distort the
+    # chronological ordering of non-hook lines.
+    matched_script_indices = sorted(
+        si for si in optimized.keys() if si not in hooks
+    )
     transcript_positions = []
     for si in matched_script_indices:
         transcript_positions.append(optimized[si].transcript_start_word_idx)
@@ -164,6 +251,7 @@ def align_segments(
 
     for sentence in script_sentences:
         si = sentence.index
+        is_hook = si in hooks
 
         if si not in optimized:
             # Unmatched / deleted
@@ -180,6 +268,8 @@ def align_segments(
                 status=SegmentStatus.DELETED,
                 is_reordered=False,
                 original_position=None,
+                is_copy=False,
+                copy_source_index=None,
                 pauses=[],
             ))
             continue
@@ -199,15 +289,19 @@ def align_segments(
         ]
         transcript_text = "".join(w["word"] for w in matched_words)
 
-        # Check if reordered
-        is_reordered = si not in lis_script_indices and si in optimized
-        original_pos = match.transcript_start_word_idx if is_reordered else None
-
         # Determine status
-        if is_reordered:
+        if is_hook:
+            # Hook copies get COPY status and is_copy flag
             status = SegmentStatus.COPY
+            is_reordered = True
+            original_pos = match.transcript_start_word_idx
+            copy_source = hooks[si]
         else:
-            status = SegmentStatus.MATCHED
+            # Non-hook: check if reordered via LIS
+            is_reordered = si not in lis_script_indices and si in optimized
+            original_pos = match.transcript_start_word_idx if is_reordered else None
+            status = SegmentStatus.COPY if is_reordered else SegmentStatus.MATCHED
+            copy_source = None
 
         # Find pauses within this segment's time range
         segment_pauses = [
@@ -228,6 +322,8 @@ def align_segments(
             status=status,
             is_reordered=is_reordered,
             original_position=original_pos,
+            is_copy=is_hook,
+            copy_source_index=copy_source,
             pauses=segment_pauses,
         ))
 

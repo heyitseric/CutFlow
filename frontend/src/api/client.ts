@@ -5,6 +5,7 @@ const BASE = '/api';
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
     ...options,
   });
   if (!res.ok) {
@@ -85,12 +86,27 @@ interface BackendAlignedSegment {
   status: string;
   is_reordered: boolean;
   original_position: number | null;
+  is_copy: boolean;
+  copy_source_index: number | null;
   pauses: BackendPauseSegment[];
 }
 
 /** Map backend snake_case alignment data to frontend camelCase types */
 function mapAlignment(segments: BackendAlignedSegment[] | null): AlignedSegment[] | null {
   if (!segments) return null;
+  // Debug: log raw backend data for first segment to verify mapping
+  if (segments.length > 0 && import.meta.env.DEV) {
+    const s = segments[0];
+    console.debug('[mapAlignment] raw backend segment[0]:', {
+      script_text: s.script_text,
+      transcript_text: s.transcript_text,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      confidence: s.confidence,
+      status: s.status,
+      keys: Object.keys(s),
+    });
+  }
   return segments.map((seg) => ({
     scriptIndex: seg.script_index,
     scriptText: seg.script_text,
@@ -104,6 +120,8 @@ function mapAlignment(segments: BackendAlignedSegment[] | null): AlignedSegment[
     status: mapSegmentStatus(seg.status),
     isReordered: seg.is_reordered ?? false,
     originalPosition: seg.original_position ?? null,
+    isCopy: seg.is_copy ?? false,
+    copySourceIndex: seg.copy_source_index ?? null,
     pauses: (seg.pauses ?? []).map((p) => ({
       start: p.start,
       end: p.end,
@@ -135,6 +153,19 @@ function mapBackendState(state: string): string {
 
 export async function getJob(jobId: string): Promise<JobResponse & { scriptName: string; audioName: string; createdAt: string }> {
   const raw = await request<BackendJobResponse>(`/jobs/${jobId}`);
+  if (import.meta.env.DEV) {
+    console.debug('[getJob] raw response:', {
+      state: raw.state,
+      alignmentPresent: raw.alignment != null,
+      alignmentLength: raw.alignment?.length ?? 0,
+      firstSegment: raw.alignment?.[0] ? {
+        transcript_text: raw.alignment[0].transcript_text,
+        start_time: raw.alignment[0].start_time,
+        end_time: raw.alignment[0].end_time,
+        confidence: raw.alignment[0].confidence,
+      } : null,
+    });
+  }
   return {
     id: raw.job_id,
     status: mapBackendState(raw.state),
@@ -247,6 +278,25 @@ export async function exportJob(
 
 export function getExportDownloadUrl(jobId: string, format: string): string {
   return `${BASE}/jobs/${jobId}/export/download?format=${format}`;
+}
+
+export async function downloadExportFile(jobId: string, format: string): Promise<void> {
+  const url = getExportDownloadUrl(jobId, format);
+  const res = await fetch(url);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Download failed ${res.status}: ${body}`);
+  }
+  const blob = await res.blob();
+  const filename = `${jobId}.${format}`;
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(blobUrl);
 }
 
 // ── Dictionary ──

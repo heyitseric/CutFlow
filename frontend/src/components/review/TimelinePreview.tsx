@@ -109,7 +109,7 @@ export default function TimelinePreview({ segments, audioDuration }: TimelinePre
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2 w-5 rounded-sm" style={{ backgroundColor: COLORS.rejected }} />
-          已移除
+          已跳过
         </span>
         <span className="ml-auto text-text-muted">
           保留 {kept.length} / {segments.length} 段

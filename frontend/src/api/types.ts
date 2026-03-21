@@ -18,6 +18,8 @@ export interface AlignedSegment {
   status: 'auto_approved' | 'needs_review' | 'approved' | 'rejected';
   isReordered: boolean;
   originalPosition: number | null;
+  isCopy: boolean;
+  copySourceIndex: number | null;
   pauses: PauseSegment[];
 }
 
@@ -70,6 +72,7 @@ export interface ExportRequest {
   frameRate: number;
   bufferDuration: number;
   subtitleSource: 'script' | 'transcript' | 'llm_corrected';
+  videoFilename?: string;
 }
 
 export interface JobSummary {

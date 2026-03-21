@@ -14,6 +14,7 @@ from app.services.dictionary import DictionaryService
 from app.services.matcher import MatcherService
 from app.services.pause_processor import detect_pauses
 from app.services.script_parser import parse_script
+from app.services.transcript_consolidator import consolidate_segments
 from app.services.transcription import TranscriptionService
 
 logger = logging.getLogger(__name__)
@@ -220,6 +221,19 @@ async def run_pipeline(job: JobData) -> None:
             f"Transcription complete: {len(transcription.segments)} segments, "
             f"duration={transcription.duration:.1f}s"
         )
+
+        # Consolidate fine-grained segments into sentence-level groups
+        # so that the matcher receives manageable, sentence-sized chunks
+        # instead of thousands of word-level fragments.
+        raw_segment_count = len(transcription.segments)
+        transcription = consolidate_segments(transcription)
+        if len(transcription.segments) != raw_segment_count:
+            logger.info(
+                f"Segments consolidated: {raw_segment_count} -> "
+                f"{len(transcription.segments)}"
+            )
+        job.transcription = transcription
+
         p.update(
             3, "语音转录", 1.0,
             f"转录完成，共 {len(transcription.segments)} 段，"
@@ -229,26 +243,28 @@ async def run_pipeline(job: JobData) -> None:
         # ---- Stage 4: Match script to transcript (20%) ----
         p.update(4, "文本匹配", 0.0, "正在准备匹配器…", state=JobState.MATCHING,
                  sub_tasks={"init_matcher": "pending", "fuzzy_match": "pending",
-                            "llm_match": "pending", "verify": "pending"})
+                            "llm_match": "pending"})
 
         p.start_subtask("init_matcher")
-        matcher = get_matcher()
+        # Always get local (RapidFuzz) matcher as fallback
+        local_matcher = get_local_matcher()
         cloud_matcher = None
         if settings.CLOUD_PROVIDER == "volcengine" and settings.ARK_API_KEY:
             try:
                 from app.providers.cloud.volcengine import VolcEngineMatcher
                 cloud_matcher = VolcEngineMatcher()
-            except Exception:
-                pass
+                logger.info("LLM matcher (VolcEngine) enabled as primary")
+            except Exception as e:
+                logger.warning(f"Failed to init LLM matcher: {e}")
 
         matcher_service = MatcherService(
-            matcher=matcher,
+            matcher=local_matcher,
             cloud_matcher=cloud_matcher,
         )
         p.complete_subtask("init_matcher")
 
         p.start_subtask("fuzzy_match")
-        p.update(4, "文本匹配", 0.2, "正在进行模糊文本匹配…")
+        p.update(4, "文本匹配", 0.2, "正在进行文本匹配…")
 
         transcript_dicts = [
             {
@@ -270,7 +286,7 @@ async def run_pipeline(job: JobData) -> None:
         p.complete_subtask("fuzzy_match")
 
         p.start_subtask("llm_match")
-        p.update(4, "文本匹配", 0.5, "正在进行 LLM 智能匹配…")
+        p.update(4, "文本匹配", 0.5, "正在进行智能匹配…")
 
         match_results = await matcher_service.match(
             [s.text for s in script_sentences],
@@ -278,10 +294,7 @@ async def run_pipeline(job: JobData) -> None:
         )
         p.complete_subtask("llm_match")
 
-        p.start_subtask("verify")
-        p.update(4, "文本匹配", 0.9, "正在验证匹配结果…")
         logger.info(f"Matching complete: {len(match_results)} match candidates")
-        p.complete_subtask("verify")
 
         p.update(
             4, "文本匹配", 1.0,

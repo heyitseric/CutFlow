@@ -235,6 +235,19 @@ class VolcengineCaptionTranscriber(Transcriber):
                     )
                 )
 
+            # If the utterance has text but no word-level breakdown,
+            # synthesize a single word from the segment text/timestamps
+            # so the flat word list used by matchers isn't missing content.
+            if not words and text:
+                words.append(
+                    TranscriptionWord(
+                        word=text,
+                        start=start,
+                        end=end,
+                        confidence=0.8,
+                    )
+                )
+
             segments.append(
                 TranscriptionSegment(
                     text=text,

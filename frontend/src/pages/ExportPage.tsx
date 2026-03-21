@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import PageContainer from '../components/layout/PageContainer';
 import Stepper from '../components/layout/Stepper';
-import { exportJob, getExportDownloadUrl } from '../api/client';
+import { exportJob, downloadExportFile } from '../api/client';
 import { useJobStore } from '../stores/jobStore';
 import type { ExportRequest } from '../api/types';
 
@@ -17,17 +17,24 @@ const FORMAT_INFO: Record<string, { label: string; desc: string }> = {
 export default function ExportPage() {
   const { id } = useParams<{ id: string }>();
   const setActiveJob = useJobStore((s) => s.setActiveJob);
+  const audioName = useJobStore((s) => (id && s.jobs[id]) ? s.jobs[id].audioName : '');
 
   useEffect(() => {
     if (id) setActiveJob(id);
   }, [id, setActiveJob]);
+
+  // Derive default video filename from audio filename (e.g. "110-audio.mp3" -> "110-audio.mp4")
+  const defaultVideoFilename = audioName
+    ? audioName.replace(/\.[^.]+$/, '.mp4')
+    : '';
 
   const [formats, setFormats] = useState({ edl: true, fcpxml: true, srt: true });
   const [frameRate, setFrameRate] = useState(25);
   const [buffer, setBuffer] = useState(0.15);
   const [subtitleSource, setSubtitleSource] = useState<ExportRequest['subtitleSource']>('script');
   const [exporting, setExporting] = useState(false);
-  const [downloadUrls, setDownloadUrls] = useState<string[]>([]);
+  const [readyFormats, setReadyFormats] = useState<string[]>([]);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function toggleFormat(f: keyof typeof formats) {
@@ -38,7 +45,7 @@ export default function ExportPage() {
     if (!id) return;
     setExporting(true);
     setError(null);
-    setDownloadUrls([]);
+    setReadyFormats([]);
 
     const selectedFormats = Object.entries(formats)
       .filter(([, v]) => v)
@@ -50,15 +57,36 @@ export default function ExportPage() {
       return;
     }
 
+    // Auto-derive video filename from audio filename
+    const finalVideoFilename = defaultVideoFilename || 'video.mp4';
+
     try {
-      const format = selectedFormats.length === 3 ? 'all' : selectedFormats[0] as ExportRequest['format'];
-      await exportJob(id, { format, frameRate, bufferDuration: buffer, subtitleSource });
-      const urls = selectedFormats.map((f) => getExportDownloadUrl(id, f));
-      setDownloadUrls(urls);
+      // Always generate all formats — they're small text files.
+      // The user only downloads the ones they selected.
+      await exportJob(id, {
+        format: 'all',
+        frameRate,
+        bufferDuration: buffer,
+        subtitleSource,
+        videoFilename: finalVideoFilename,
+      });
+      setReadyFormats(selectedFormats);
     } catch (err) {
       setError(err instanceof Error ? err.message : '导出失败');
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleDownload(format: string) {
+    if (!id) return;
+    setDownloading(format);
+    try {
+      await downloadExportFile(id, format);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '下载失败');
+    } finally {
+      setDownloading(null);
     }
   }
 
@@ -165,6 +193,16 @@ export default function ExportPage() {
             </div>
           </div>
 
+          {/* Video filename - auto-derived, shown as info only */}
+          {defaultVideoFilename && (
+            <div className="animate-fade-in-up delay-5 rounded-2xl border border-border bg-surface p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">导出后链接的视频文件</span>
+                <span className="font-mono text-xs text-text-secondary">{defaultVideoFilename}</span>
+              </div>
+            </div>
+          )}
+
           {/* Error */}
           {error && (
             <div className="animate-slide-down rounded-xl border border-danger/20 bg-danger-surface p-4 text-sm text-danger">
@@ -196,26 +234,23 @@ export default function ExportPage() {
           </button>
 
           {/* Download links */}
-          {downloadUrls.length > 0 && (
+          {readyFormats.length > 0 && (
             <div className="animate-slide-down rounded-2xl border border-success/20 bg-success-surface p-5">
               <h3 className="mb-3 font-display text-sm font-semibold text-success">导出完成</h3>
               <div className="flex flex-col gap-2">
-                {downloadUrls.map((url, i) => {
-                  const format = url.split('format=')[1] ?? '';
-                  return (
-                    <a
-                      key={i}
-                      href={url}
-                      download
-                      className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-text-primary hover:bg-elevated transition-colors"
-                    >
-                      <svg className="h-4 w-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      下载 {format.toUpperCase()} 文件
-                    </a>
-                  );
-                })}
+                {readyFormats.map((format) => (
+                  <button
+                    key={format}
+                    onClick={() => handleDownload(format)}
+                    disabled={downloading === format}
+                    className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-text-primary hover:bg-elevated transition-colors disabled:opacity-50"
+                  >
+                    <svg className="h-4 w-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    {downloading === format ? '下载中...' : `下载 ${format.toUpperCase()} 文件`}
+                  </button>
+                ))}
               </div>
             </div>
           )}

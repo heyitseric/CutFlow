@@ -5,8 +5,10 @@ import math
 import time
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
+from app.config import get_settings
 from app.jobs.manager import get_job_manager
 from app.models.schemas import JobResponse, JobStatus, JobSummary
 
@@ -164,3 +166,36 @@ async def job_status_stream(job_id: str, request: Request):
             await asyncio.sleep(0.5)
 
     return EventSourceResponse(event_generator())
+
+
+@router.get("/jobs/{job_id}/audio")
+async def get_job_audio(job_id: str):
+    """Serve the uploaded audio file for playback."""
+    settings = get_settings()
+    manager = get_job_manager()
+    job = manager.get_job(job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    audio_path = settings.UPLOAD_DIR / job_id / job.audio_filename
+    if not audio_path.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    # Determine media type from extension
+    suffix = audio_path.suffix.lower()
+    media_types = {
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".m4a": "audio/mp4",
+        ".flac": "audio/flac",
+        ".ogg": "audio/ogg",
+        ".aac": "audio/aac",
+    }
+    media_type = media_types.get(suffix, "audio/mpeg")
+
+    return FileResponse(
+        path=str(audio_path),
+        media_type=media_type,
+        filename=job.audio_filename,
+    )

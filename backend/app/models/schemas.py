@@ -87,6 +87,8 @@ class AlignedSegment(BaseModel):
     status: SegmentStatus = SegmentStatus.UNMATCHED
     is_reordered: bool = False
     original_position: Optional[int] = None
+    is_copy: bool = False
+    copy_source_index: Optional[int] = None
     pauses: list[PauseSegment] = Field(default_factory=list)
 
 
@@ -170,9 +172,13 @@ class ExportFormat(str, Enum):
 
 
 class ExportRequest(BaseModel):
+    model_config = {"populate_by_name": True}
+
     format: ExportFormat = ExportFormat.ALL
-    frame_rate: float = 29.97
-    buffer_duration: float = 0.15
+    frame_rate: float = Field(default=29.97, alias="frameRate")
+    buffer_duration: float = Field(default=0.15, alias="bufferDuration")
+    subtitle_source: str = Field(default="script", alias="subtitleSource")
+    video_filename: Optional[str] = Field(default=None, alias="videoFilename")
 
 
 class ExportResponse(BaseModel):

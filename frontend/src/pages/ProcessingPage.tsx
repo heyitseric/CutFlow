@@ -236,9 +236,13 @@ export default function ProcessingPage() {
   useJob(id);
 
   useEffect(() => {
+    let cancelled = false;
     if (id) {
-      getJob(id).then(setJob).catch(() => {});
+      getJob(id).then((job) => {
+        if (!cancelled) setJob(job);
+      }).catch(() => {});
     }
+    return () => { cancelled = true; };
   }, [id, setJob]);
 
   useEffect(() => {

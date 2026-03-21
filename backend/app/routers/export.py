@@ -41,47 +41,46 @@ async def export_job(job_id: str, request: ExportRequest):
     files: list[str] = []
     audio_duration = job.transcription.duration if job.transcription else 0.0
 
-    formats_to_generate = []
-    if request.format == ExportFormat.ALL:
-        formats_to_generate = [ExportFormat.EDL, ExportFormat.FCPXML, ExportFormat.SRT]
-    else:
-        formats_to_generate = [request.format]
+    # Always generate all formats — they're small text files
+    # EDL
+    edl_content = generate_edl(
+        segments=job.alignment,
+        title=f"Job_{job_id}",
+        frame_rate=request.frame_rate,
+        audio_filename=job.audio_filename,
+        video_filename=request.video_filename,
+        buffer_duration=request.buffer_duration,
+        audio_duration=audio_duration,
+    )
+    edl_path = output_dir / f"{job_id}.edl"
+    edl_path.write_text(edl_content, encoding="utf-8")
+    files.append(f"/api/downloads/{job_id}/{job_id}.edl")
+    logger.info(f"Generated EDL: {edl_path}")
 
-    for fmt in formats_to_generate:
-        if fmt == ExportFormat.EDL:
-            edl_content = generate_edl(
-                segments=job.alignment,
-                title=f"Job_{job_id}",
-                frame_rate=request.frame_rate,
-                audio_filename=job.audio_filename,
-            )
-            edl_path = output_dir / f"{job_id}.edl"
-            edl_path.write_text(edl_content, encoding="utf-8")
-            files.append(f"/api/downloads/{job_id}/{job_id}.edl")
-            logger.info(f"Generated EDL: {edl_path}")
+    # FCPXML
+    fcpxml_content = generate_fcpxml(
+        segments=job.alignment,
+        title=f"Job_{job_id}",
+        frame_rate=request.frame_rate,
+        audio_filename=job.audio_filename,
+        audio_duration=audio_duration,
+        video_filename=request.video_filename,
+        buffer_duration=request.buffer_duration,
+    )
+    fcpxml_path = output_dir / f"{job_id}.fcpxml"
+    fcpxml_path.write_text(fcpxml_content, encoding="utf-8")
+    files.append(f"/api/downloads/{job_id}/{job_id}.fcpxml")
+    logger.info(f"Generated FCPXML: {fcpxml_path}")
 
-        elif fmt == ExportFormat.FCPXML:
-            fcpxml_content = generate_fcpxml(
-                segments=job.alignment,
-                title=f"Job_{job_id}",
-                frame_rate=request.frame_rate,
-                audio_filename=job.audio_filename,
-                audio_duration=audio_duration,
-            )
-            fcpxml_path = output_dir / f"{job_id}.fcpxml"
-            fcpxml_path.write_text(fcpxml_content, encoding="utf-8")
-            files.append(f"/api/downloads/{job_id}/{job_id}.fcpxml")
-            logger.info(f"Generated FCPXML: {fcpxml_path}")
-
-        elif fmt == ExportFormat.SRT:
-            srt_content = generate_srt(
-                segments=job.alignment,
-                text_source="script",
-            )
-            srt_path = output_dir / f"{job_id}.srt"
-            srt_path.write_text(srt_content, encoding="utf-8")
-            files.append(f"/api/downloads/{job_id}/{job_id}.srt")
-            logger.info(f"Generated SRT: {srt_path}")
+    # SRT
+    srt_content = generate_srt(
+        segments=job.alignment,
+        text_source=request.subtitle_source if request.subtitle_source != "llm_corrected" else "script",
+    )
+    srt_path = output_dir / f"{job_id}.srt"
+    srt_path.write_text(srt_content, encoding="utf-8")
+    files.append(f"/api/downloads/{job_id}/{job_id}.srt")
+    logger.info(f"Generated SRT: {srt_path}")
 
     # Update job state
     manager.update_job(job_id, state=JobState.DONE, message="Export complete")
@@ -90,9 +89,38 @@ async def export_job(job_id: str, request: ExportRequest):
     return ExportResponse(files=files)
 
 
+@router.get("/jobs/{job_id}/export/download")
+async def download_export(job_id: str, format: str):
+    """Download a generated export file by format (edl, fcpxml, srt)."""
+    settings = get_settings()
+    allowed_formats = {"edl", "fcpxml", "srt"}
+    if format not in allowed_formats:
+        raise HTTPException(status_code=400, detail=f"Invalid format: {format}")
+
+    filename = f"{job_id}.{format}"
+    file_path = settings.OUTPUT_DIR / job_id / filename
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"Export file not found: {filename}")
+
+    # Determine media type
+    media_types = {
+        "edl": "text/plain",
+        "fcpxml": "application/xml",
+        "srt": "text/plain; charset=utf-8",
+    }
+    media_type = media_types.get(format, "application/octet-stream")
+
+    return FileResponse(
+        path=str(file_path),
+        filename=filename,
+        media_type=media_type,
+    )
+
+
 @router.get("/downloads/{job_id}/{filename}")
 async def download_file(job_id: str, filename: str):
-    """Serve generated export files."""
+    """Serve generated export files (legacy URL)."""
     settings = get_settings()
     file_path = settings.OUTPUT_DIR / job_id / filename
 
