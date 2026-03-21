@@ -15,53 +15,73 @@ interface SubTask {
 
 // ── Stage definitions (aligned with backend 1-7) ──
 
-const PROCESSING_STAGES = [
-  { id: 1, name: '解析脚本' },
-  { id: 2, name: '加载模型' },
-  { id: 3, name: '语音转录' },
-  { id: 4, name: '文本匹配' },
-  { id: 5, name: '停顿检测' },
-  { id: 6, name: '对齐校准' },
-  { id: 7, name: '生成结果' },
-] as const;
+// ── Stage definitions — adapt to cloud vs local transcription ──
 
-// ── Sub-tasks for each stage ──
+function getProcessingStages(isCloud: boolean) {
+  return [
+    { id: 1, name: '解析脚本' },
+    { id: 2, name: isCloud ? '连接云端' : '加载模型' },
+    { id: 3, name: isCloud ? '云端转录' : '本地转录' },
+    { id: 4, name: '文本匹配' },
+    { id: 5, name: '停顿检测' },
+    { id: 6, name: '对齐校准' },
+    { id: 7, name: '生成结果' },
+  ];
+}
 
-const STAGE_SUBTASKS: Record<number, SubTask[]> = {
-  1: [
-    { key: 'read_md', label: '读取 Markdown 文件' },
-    { key: 'extract_sentences', label: '提取句子' },
-    { key: 'load_dict', label: '加载自定义词典' },
-  ],
-  2: [
-    { key: 'init_engine', label: '初始化转录引擎' },
-    { key: 'load_model', label: '加载 Whisper 模型' },
-  ],
-  3: [
-    { key: 'transcribe', label: '音频转录' },
-    { key: 'vad', label: '语音活动检测' },
-    { key: 'segments', label: '分段处理' },
-  ],
-  4: [
-    { key: 'init_matcher', label: '准备匹配器' },
-    { key: 'fuzzy_match', label: '模糊文本匹配' },
-    { key: 'llm_match', label: 'LLM 智能匹配' },
-    { key: 'verify', label: '匹配结果验证' },
-  ],
-  5: [
-    { key: 'detect_pauses', label: '检测停顿间隔' },
-    { key: 'mark_errors', label: '标记口误片段' },
-  ],
-  6: [
-    { key: 'align', label: '时间轴对齐' },
-    { key: 'buffer', label: '添加缓冲区间 (0.15s)' },
-  ],
-  7: [
-    { key: 'apply_buffer', label: '应用缓冲' },
-    { key: 'gen_results', label: '生成匹配结果' },
-    { key: 'preview', label: '生成预览数据' },
-  ],
-};
+function getStageSubtasks(isCloud: boolean): Record<number, SubTask[]> {
+  return {
+    1: [
+      { key: 'read_md', label: '读取 Markdown 文件' },
+      { key: 'extract_sentences', label: '提取句子' },
+      { key: 'load_dict', label: '加载自定义词典' },
+    ],
+    2: isCloud
+      ? [
+          { key: 'init_engine', label: '初始化云端 API' },
+          { key: 'upload_audio', label: '上传音频文件' },
+        ]
+      : [
+          { key: 'init_engine', label: '初始化转录引擎' },
+          { key: 'load_model', label: '加载 Whisper 模型' },
+        ],
+    3: isCloud
+      ? [
+          { key: 'transcribe', label: '云端语音识别' },
+          { key: 'segments', label: '解析字级时间戳' },
+        ]
+      : [
+          { key: 'transcribe', label: '音频转录' },
+          { key: 'vad', label: '语音活动检测' },
+          { key: 'segments', label: '分段处理' },
+        ],
+    4: isCloud
+      ? [
+          { key: 'init_matcher', label: '准备匹配器' },
+          { key: 'llm_match', label: 'LLM 语义匹配' },
+          { key: 'verify', label: '匹配结果验证' },
+        ]
+      : [
+          { key: 'init_matcher', label: '准备匹配器' },
+          { key: 'fuzzy_match', label: '模糊文本匹配' },
+          { key: 'llm_match', label: 'LLM 智能匹配' },
+          { key: 'verify', label: '匹配结果验证' },
+        ],
+    5: [
+      { key: 'detect_pauses', label: '检测停顿间隔' },
+      { key: 'mark_errors', label: '标记口误片段' },
+    ],
+    6: [
+      { key: 'align', label: '时间轴对齐' },
+      { key: 'buffer', label: '添加缓冲区间 (0.15s)' },
+    ],
+    7: [
+      { key: 'apply_buffer', label: '应用缓冲' },
+      { key: 'gen_results', label: '生成匹配结果' },
+      { key: 'preview', label: '生成预览数据' },
+    ],
+  };
+}
 
 // ── Sub-task status resolution ──
 
@@ -75,8 +95,9 @@ function resolveSubTaskStatuses(
   stageId: number,
   stageStatus: 'done' | 'active' | 'pending',
   backendSubTasks: Record<string, string> | undefined,
+  stageSubtasks: Record<number, SubTask[]>,
 ): Record<string, SubTaskStatus> {
-  const subtasks = STAGE_SUBTASKS[stageId];
+  const subtasks = stageSubtasks[stageId];
   if (!subtasks) return {};
 
   const result: Record<string, SubTaskStatus> = {};
@@ -262,6 +283,11 @@ export default function ProcessingPage() {
   const elapsed = elapsedSeconds;
   const estimatedRemaining = estimatedRemainingSeconds;
 
+  // Detect cloud vs local from stage detail messages
+  const isCloud = (stageDetail?.includes('云端') || stageDetail?.includes('Volcengine') || stageDetail?.includes('cloud')) ?? false;
+  const stages = getProcessingStages(isCloud);
+  const stageSubtasks = getStageSubtasks(isCloud);
+
   // All stages collapsed by default — user clicks to expand/collapse
 
   return (
@@ -273,16 +299,16 @@ export default function ProcessingPage() {
           {/* ── Stage todo list ── */}
           <div className="w-full max-w-md">
             <ul className="flex flex-col gap-1">
-              {PROCESSING_STAGES.map((stage) => {
+              {stages.map((stage) => {
                 const isDone = isComplete || currentStage > stage.id;
                 const isActive = !isComplete && !isFailed && currentStage === stage.id;
                 const isPending = !isDone && !isActive;
                 const stageStatus: 'done' | 'active' | 'pending' = isDone ? 'done' : isActive ? 'active' : 'pending';
 
-                const subtasks = STAGE_SUBTASKS[stage.id] ?? [];
+                const subtasks = stageSubtasks[stage.id] ?? [];
                 const hasSubtasks = subtasks.length > 0;
                 const isExpanded = expandedStages.has(stage.id);
-                const subtaskStatuses = resolveSubTaskStatuses(stage.id, stageStatus, stageProgress?.sub_tasks);
+                const subtaskStatuses = resolveSubTaskStatuses(stage.id, stageStatus, stageProgress?.sub_tasks, stageSubtasks);
 
                 return (
                   <li key={stage.id} className="transition-all duration-500">

@@ -309,31 +309,56 @@ def align_segments(
             if p.start >= start_time and p.end <= end_time
         ]
 
-        # ── Trim leading/trailing pauses (breath gaps / 气口) ──
-        # Remove pauses at the very start and end of the segment so
-        # the exported clip begins and ends on actual speech, not silence.
-        trimmed_start = start_time
-        trimmed_end = end_time
+        # ── Trim breath gaps (气口) ──
+        # Strategy depends on transcription source:
+        #
+        # CLOUD mode (word-level timestamps from Volcengine Caption API):
+        #   The matched words already have precise per-character timestamps.
+        #   start_time = first matched word's start, end_time = last matched
+        #   word's end.  These ARE the speech boundaries — no further
+        #   trimming needed.  Pause-based trimming would only degrade them.
+        #
+        # LOCAL mode (WhisperX):
+        #   Word timestamps may be less precise; segment boundaries often
+        #   include leading/trailing silence.  Use pause detection to trim.
+        #
+        # We distinguish by checking whether word timestamps are granular
+        # (cloud gives per-character; local gives per-word which is coarser).
+        # Heuristic: if average word duration < 0.3s, it's character-level
+        # (cloud), otherwise it's word-level (local).
+        avg_word_dur = (
+            (end_time - start_time) / len(matched_words)
+            if matched_words else 1.0
+        )
+        is_cloud_precision = avg_word_dur < 0.3
 
-        # Trim leading pauses: if a pause starts at (or very near) segment start
-        TRIM_TOLERANCE = 0.15  # seconds
-        for p in sorted(segment_pauses, key=lambda p: p.start):
-            if p.start <= trimmed_start + TRIM_TOLERANCE:
-                trimmed_start = max(trimmed_start, p.end)
-            else:
-                break
-
-        # Trim trailing pauses: if a pause ends at (or very near) segment end
-        for p in sorted(segment_pauses, key=lambda p: p.end, reverse=True):
-            if p.end >= trimmed_end - TRIM_TOLERANCE:
-                trimmed_end = min(trimmed_end, p.start)
-            else:
-                break
-
-        # Safety: don't let trimming invert the range or make it too short
-        if trimmed_end - trimmed_start < 0.3:
+        if is_cloud_precision:
+            # Cloud mode: trust word timestamps directly.
+            # No pause-based trimming — the boundaries are already tight.
             trimmed_start = start_time
             trimmed_end = end_time
+        else:
+            # Local mode fallback: trim leading/trailing pauses
+            trimmed_start = start_time
+            trimmed_end = end_time
+
+            TRIM_TOLERANCE = 0.15  # seconds
+            for p in sorted(segment_pauses, key=lambda p: p.start):
+                if p.start <= trimmed_start + TRIM_TOLERANCE:
+                    trimmed_start = max(trimmed_start, p.end)
+                else:
+                    break
+
+            for p in sorted(segment_pauses, key=lambda p: p.end, reverse=True):
+                if p.end >= trimmed_end - TRIM_TOLERANCE:
+                    trimmed_end = min(trimmed_end, p.start)
+                else:
+                    break
+
+            # Safety: don't let trimming invert the range
+            if trimmed_end - trimmed_start < 0.3:
+                trimmed_start = start_time
+                trimmed_end = end_time
 
         aligned.append(AlignedSegment(
             script_index=si,
