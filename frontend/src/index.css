@@ -1,0 +1,257 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════
+   DIGITAL FILM LAB — Design System
+   A cinematic dark interface for video editing
+   ═══════════════════════════════════════════ */
+
+@theme {
+  /* ── Core Palette ── */
+  --color-deep: #08080d;
+  --color-base: #0e0e16;
+  --color-surface: #16161f;
+  --color-elevated: #1e1e2a;
+  --color-panel: #252535;
+  --color-hover: #2c2c40;
+  --color-border: #2a2a3c;
+  --color-border-subtle: #1f1f2e;
+
+  /* ── Accent Colors ── */
+  --color-amber: #e8a838;
+  --color-amber-dim: #b8842a;
+  --color-amber-glow: rgba(232, 168, 56, 0.15);
+  --color-teal: #38bdf8;
+  --color-teal-dim: #2196d4;
+  --color-teal-glow: rgba(56, 189, 248, 0.12);
+
+  /* ── Semantic Colors ── */
+  --color-success: #34d399;
+  --color-success-dim: #059669;
+  --color-success-surface: rgba(52, 211, 153, 0.08);
+  --color-warning: #fbbf24;
+  --color-warning-dim: #d97706;
+  --color-warning-surface: rgba(251, 191, 36, 0.08);
+  --color-danger: #f87171;
+  --color-danger-dim: #dc2626;
+  --color-danger-surface: rgba(248, 113, 113, 0.08);
+  --color-purple: #a78bfa;
+  --color-purple-dim: #7c3aed;
+  --color-purple-surface: rgba(167, 139, 250, 0.08);
+
+  /* ── Text Colors ── */
+  --color-text-primary: #edeae2;
+  --color-text-secondary: #9794a8;
+  --color-text-muted: #5d5a70;
+  --color-text-faint: #3d3a4e;
+
+  /* ── Typography ── */
+  --font-display: "Bricolage Grotesque", "Noto Sans SC", system-ui, sans-serif;
+  --font-body: "Noto Sans SC", "Bricolage Grotesque", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ── Base Styles ── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-panel) transparent;
+}
+
+::selection {
+  background: var(--color-amber-glow);
+  color: var(--color-amber);
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-deep);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Film Grain Overlay ── */
+
+#root::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+/* ── Animations ── */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-amber-glow); }
+  50% { box-shadow: 0 0 20px 4px var(--color-amber-glow); }
+}
+
+@keyframes gentlePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes progressStripe {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 0; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out both;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out both;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.animate-gentle-pulse {
+  animation: gentlePulse 2s ease-in-out infinite;
+}
+
+/* Stagger delays */
+.delay-1 { animation-delay: 0.05s; }
+.delay-2 { animation-delay: 0.1s; }
+.delay-3 { animation-delay: 0.15s; }
+.delay-4 { animation-delay: 0.2s; }
+.delay-5 { animation-delay: 0.25s; }
+.delay-6 { animation-delay: 0.3s; }
+
+/* ── Custom Range Slider ── */
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  height: 24px;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-panel);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-amber);
+  margin-top: -6px;
+  box-shadow: 0 0 8px var(--color-amber-glow);
+  transition: transform 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* ── Custom Scrollbar (Webkit) ── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-panel);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-hover);
+}
+
+/* ── Focus Ring ── */
+
+*:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Gradient Mesh Background ── */
+
+.bg-mesh {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(232, 168, 56, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(56, 189, 248, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(167, 139, 250, 0.02) 0%, transparent 50%),
+    var(--color-deep);
+}
+
+/* ── Glass Panel ── */
+
+.glass-panel {
+  background: rgba(22, 22, 31, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* ── Progress Stripe ── */
+
+.progress-stripe {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.06) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.06) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 40px 40px;
+  animation: progressStripe 1s linear infinite;
+}

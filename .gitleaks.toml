@@ -1,0 +1,25 @@
+title = "A-Roll Rough Cut Tool - Gitleaks Config"
+
+[allowlist]
+  paths = [
+    ".env.example",
+    ".gitleaks.toml",
+  ]
+
+[[rules]]
+  id = "ark-api-key"
+  description = "Volcano Engine ARK API Key"
+  regex = '''(?i)ark[_-]?api[_-]?key\s*=\s*['\"]?[a-zA-Z0-9\-_]{20,}['\"]?'''
+  tags = ["key", "volcengine"]
+
+[[rules]]
+  id = "openai-api-key"
+  description = "OpenAI API Key"
+  regex = '''sk-[a-zA-Z0-9]{20,}'''
+  tags = ["key", "openai"]
+
+[[rules]]
+  id = "generic-api-key"
+  description = "Generic API Key pattern"
+  regex = '''(?i)(api[_-]?key|secret[_-]?key|access[_-]?token)\s*=\s*['\"]?[a-zA-Z0-9\-_]{20,}['\"]?'''
+  tags = ["key", "generic"]
