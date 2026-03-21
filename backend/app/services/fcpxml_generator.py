@@ -131,26 +131,29 @@ def generate_fcpxml(
         "height": "1080",
     })
 
-    # Media asset — use <media-rep> child for the file reference
+    # Media asset — src directly on <asset> (no <media-rep> child).
+    # JianYing treats <media-rep> as a second media reference, causing
+    # two files to appear in the relink dialog.  Putting src on the
+    # asset itself avoids this.
     media_dur_str = (
         _seconds_to_rational(audio_duration, frame_rate)
         if audio_duration > 0
         else "0/1s"
     )
-    asset_attrs = {
+    media_stem = media_filename.rsplit(".", 1)[0] if "." in media_filename else media_filename
+
+    ET.SubElement(resources, "asset", {
         "id": "r2",
-        "name": media_filename,
+        "name": media_stem,
+        "src": f"file://./{media_filename}",
         "start": "0/1s",
         "duration": media_dur_str,
         "hasAudio": "1",
         "hasVideo": "1",
         "format": "r1",
-    }
-
-    asset = ET.SubElement(resources, "asset", asset_attrs)
-    ET.SubElement(asset, "media-rep", {
-        "kind": "original-media",
-        "src": f"file://./{media_filename}",
+        "audioSources": "1",
+        "audioChannels": "2",
+        "audioRate": "48000",
     })
 
     # ── Library > Event > Project > Sequence > Spine ──
