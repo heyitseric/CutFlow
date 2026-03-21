@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     CLOUD_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/coding/v3"
     CLOUD_MODEL: str = "doubao-seed-2.0-lite"
 
+    # Volcengine Caption API (cloud transcription)
+    VOLCENGINE_CAPTION_APPID: str = ""
+    VOLCENGINE_CAPTION_TOKEN: str = ""
+
     # Data directories
     DATA_DIR: Path = Path(__file__).resolve().parent.parent / "data"
     UPLOAD_DIR: Path = Path(__file__).resolve().parent.parent / "data" / "uploads"

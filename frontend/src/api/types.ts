@@ -36,6 +36,8 @@ export interface JobResponse {
   audioDuration: number | null;
   alignment: AlignedSegment[] | null;
   error: string | null;
+  /** New detailed progress info from SSE; may be absent on older backends */
+  stageProgress?: ProgressEvent;
 }
 
 export interface DictionaryEntry {
@@ -52,9 +54,43 @@ export interface DictionaryData {
   customTerms: string[];
 }
 
+export interface ProgressEvent {
+  stage: number;
+  stage_name: string;
+  stage_detail: string;
+  progress: number;
+  elapsed_seconds: number;
+  estimated_remaining_seconds: number | null;
+}
+
 export interface ExportRequest {
   format: 'edl' | 'fcpxml' | 'srt' | 'all';
   frameRate: number;
   bufferDuration: number;
   subtitleSource: 'script' | 'transcript' | 'llm_corrected';
+}
+
+export interface JobSummary {
+  job_id: string;
+  status: 'processing' | 'completed' | 'failed';
+  progress: number;
+  stage_name: string;
+  script_name: string;
+  audio_name: string;
+  created_at: string;
+  elapsed_seconds: number;
+}
+
+/** Shape of data sent by the backend SSE stream */
+export interface SSEStatusData {
+  job_id: string;
+  state: string;
+  progress: number;
+  message: string;
+  updated_at: string;
+  stage: number;
+  stage_name: string;
+  stage_detail: string;
+  elapsed_seconds: number;
+  estimated_remaining_seconds: number | null;
 }

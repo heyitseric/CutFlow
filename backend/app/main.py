@@ -1,5 +1,26 @@
 import logging
+import os
+import warnings
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Early environment tweaks (before any heavy imports)
+# ---------------------------------------------------------------------------
+
+# Suppress matplotlib font-cache rebuild (~1.5 min on first import by
+# pyannote / whisperx).  Setting MPLCONFIGDIR to a pre-existing writable
+# dir avoids the expensive scan, and the Agg backend avoids any GUI toolkit.
+os.environ.setdefault("MPLBACKEND", "Agg")
+os.environ.setdefault(
+    "MPLCONFIGDIR",
+    str(Path(__file__).resolve().parent.parent / "data" / ".mpl_cache"),
+)
+
+# Suppress noisy torchcodec warning emitted by torchaudio / whisperx
+warnings.filterwarnings("ignore", message=".*torchcodec.*")
+# Suppress other common noisy warnings from ML dependencies
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
+warnings.filterwarnings("ignore", category=UserWarning, module="torchaudio")
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -13,7 +34,7 @@ if _env_path.exists():
     load_dotenv(_env_path)
 
 from app.config import get_settings
-from app.routers import alignment, dictionary, export, jobs, upload
+from app.routers import alignment, dictionary, export, jobs, system, upload
 
 # Configure logging
 logging.basicConfig(
@@ -47,6 +68,7 @@ app.include_router(jobs.router)
 app.include_router(alignment.router)
 app.include_router(export.router)
 app.include_router(dictionary.router)
+app.include_router(system.router)
 
 # Mount static files for downloads
 settings = get_settings()
@@ -55,6 +77,9 @@ settings.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 @app.on_event("startup")
 async def startup_event():
+    # Ensure matplotlib cache dir exists so it never triggers a slow rebuild
+    Path(os.environ.get("MPLCONFIGDIR", "")).mkdir(parents=True, exist_ok=True)
+
     logger.info("A-Roll Rough Cut Tool backend starting up")
     logger.info(f"Data directory: {settings.DATA_DIR}")
     logger.info(f"Cloud provider: {settings.CLOUD_PROVIDER}")

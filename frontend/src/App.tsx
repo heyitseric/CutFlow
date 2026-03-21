@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Header from './components/layout/Header';
+import Sidebar from './components/layout/Sidebar';
+import SystemMonitor from './components/layout/SystemMonitor';
 import UploadPage from './pages/UploadPage';
 import ProcessingPage from './pages/ProcessingPage';
 import ReviewPage from './pages/ReviewPage';
@@ -9,18 +11,22 @@ import DictionaryPage from './pages/DictionaryPage';
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="bg-mesh min-h-screen font-body text-text-primary antialiased">
+      <div className="bg-mesh flex min-h-screen flex-col font-body text-text-primary antialiased">
         <Header />
-        <main className="relative">
-          <Routes>
-            <Route path="/" element={<UploadPage />} />
-            <Route path="/processing/:id" element={<ProcessingPage />} />
-            <Route path="/review/:id" element={<ReviewPage />} />
-            <Route path="/export/:id" element={<ExportPage />} />
-            <Route path="/dictionary" element={<DictionaryPage />} />
-          </Routes>
-        </main>
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar />
+          <main className="relative flex-1 overflow-y-auto">
+            <Routes>
+              <Route path="/" element={<UploadPage />} />
+              <Route path="/processing/:id" element={<ProcessingPage />} />
+              <Route path="/review/:id" element={<ReviewPage />} />
+              <Route path="/export/:id" element={<ExportPage />} />
+              <Route path="/dictionary" element={<DictionaryPage />} />
+            </Routes>
+          </main>
+        </div>
       </div>
+      <SystemMonitor />
     </BrowserRouter>
   );
 }

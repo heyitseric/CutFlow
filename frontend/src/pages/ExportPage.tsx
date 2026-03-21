@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import PageContainer from '../components/layout/PageContainer';
 import Stepper from '../components/layout/Stepper';
 import { exportJob, getExportDownloadUrl } from '../api/client';
+import { useJobStore } from '../stores/jobStore';
 import type { ExportRequest } from '../api/types';
 
 const FRAME_RATES = [23.976, 24, 25, 29.97, 30];
@@ -15,6 +16,11 @@ const FORMAT_INFO: Record<string, { label: string; desc: string }> = {
 
 export default function ExportPage() {
   const { id } = useParams<{ id: string }>();
+  const setActiveJob = useJobStore((s) => s.setActiveJob);
+
+  useEffect(() => {
+    if (id) setActiveJob(id);
+  }, [id, setActiveJob]);
 
   const [formats, setFormats] = useState({ edl: true, fcpxml: true, srt: true });
   const [frameRate, setFrameRate] = useState(25);

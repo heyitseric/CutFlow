@@ -1,37 +1,265 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageContainer from '../components/layout/PageContainer';
 import Stepper from '../components/layout/Stepper';
 import { useJob } from '../hooks/useJob';
-import { useJobStore } from '../stores/jobStore';
+import { useJobStore, useActiveJob } from '../stores/jobStore';
 import { getJob } from '../api/client';
-import { formatDuration } from '../utils/timecode';
 
-const STAGE_LABELS: Record<string, string> = {
-  uploading: '上传中',
-  transcribing: '转录中',
-  aligning: '对齐中',
-  matching: '匹配中',
-  processing: '处理中',
-  completed: '处理完成',
-  failed: '处理失败',
+// ── Sub-task types ──
+
+interface SubTask {
+  key: string;
+  label: string;
+}
+
+// ── Stage definitions (aligned with backend 1-7) ──
+
+const PROCESSING_STAGES = [
+  { id: 1, name: '解析脚本' },
+  { id: 2, name: '加载模型' },
+  { id: 3, name: '语音转录' },
+  { id: 4, name: '文本匹配' },
+  { id: 5, name: '停顿检测' },
+  { id: 6, name: '对齐校准' },
+  { id: 7, name: '生成结果' },
+] as const;
+
+// ── Sub-tasks for each stage ──
+
+const STAGE_SUBTASKS: Record<number, SubTask[]> = {
+  1: [
+    { key: 'read_md', label: '读取 Markdown 文件' },
+    { key: 'extract_sentences', label: '提取句子' },
+    { key: 'load_dict', label: '加载自定义词典' },
+  ],
+  2: [
+    { key: 'init_dict', label: '初始化字典服务' },
+    { key: 'load_whisper', label: '加载 Whisper 模型' },
+  ],
+  3: [
+    { key: 'transcribe', label: '音频转录' },
+    { key: 'vad', label: '语音活动检测' },
+    { key: 'segments', label: '分段处理' },
+  ],
+  4: [
+    { key: 'init_matcher', label: '准备匹配器' },
+    { key: 'fuzzy_match', label: '模糊文本匹配' },
+    { key: 'llm_match', label: 'LLM 智能匹配' },
+    { key: 'verify', label: '匹配结果验证' },
+  ],
+  5: [
+    { key: 'detect_pauses', label: '检测停顿间隔' },
+    { key: 'mark_errors', label: '标记口误片段' },
+  ],
+  6: [
+    { key: 'align', label: '时间轴对齐' },
+    { key: 'buffer', label: '添加缓冲区间 (0.15s)' },
+  ],
+  7: [
+    { key: 'apply_buffer', label: '应用缓冲' },
+    { key: 'gen_results', label: '生成匹配结果' },
+    { key: 'preview', label: '生成预览数据' },
+  ],
 };
 
-const STAGE_DESCRIPTIONS: Record<string, string> = {
-  uploading: '正在上传文件到服务器...',
-  transcribing: '正在识别音频内容，提取词级时间戳...',
-  aligning: '正在将脚本与转录内容进行对齐...',
-  matching: '正在进行模糊匹配，计算置信度...',
-  processing: '正在处理数据...',
-  completed: '即将跳转至审核页面',
-  failed: '处理过程中出现错误',
+// ── Sub-task status inference from stage_detail ──
+
+/** Keywords map: sub-task key -> patterns that indicate this sub-task is active or done */
+const SUBTASK_KEYWORDS: Record<string, string[]> = {
+  // Stage 1
+  read_md: ['解析脚本文件'],
+  extract_sentences: ['提取', '句'],
+  load_dict: ['词典', '字典'],
+  // Stage 2
+  init_dict: ['字典服务', '初始化字典'],
+  load_whisper: ['Whisper', '模型', '转录模型', '下载'],
+  // Stage 3
+  transcribe: ['转录', '转写'],
+  vad: ['语音活动', 'VAD', '活动检测'],
+  segments: ['分段', '段'],
+  // Stage 4
+  init_matcher: ['匹配器', '准备匹配'],
+  fuzzy_match: ['匹配脚本', '模糊', '匹配文本'],
+  llm_match: ['LLM', '智能匹配'],
+  verify: ['验证', '匹配候选', '匹配完成'],
+  // Stage 5
+  detect_pauses: ['检测', '停顿'],
+  mark_errors: ['标记', '口误'],
+  // Stage 6
+  align: ['对齐', '校准'],
+  buffer: ['缓冲'],
+  // Stage 7
+  apply_buffer: ['应用缓冲'],
+  gen_results: ['匹配', '结果', '处理完成'],
+  preview: ['预览'],
 };
+
+type SubTaskStatus = 'completed' | 'active' | 'pending';
+
+function inferSubTaskStatuses(
+  stageId: number,
+  stageStatus: 'done' | 'active' | 'pending',
+  detail: string,
+): Record<string, SubTaskStatus> {
+  const subtasks = STAGE_SUBTASKS[stageId];
+  if (!subtasks) return {};
+
+  const result: Record<string, SubTaskStatus> = {};
+
+  if (stageStatus === 'done') {
+    for (const st of subtasks) result[st.key] = 'completed';
+    return result;
+  }
+
+  if (stageStatus === 'pending') {
+    for (const st of subtasks) result[st.key] = 'pending';
+    return result;
+  }
+
+  // Stage is active — infer from detail text
+  // Find the last sub-task whose keywords appear in the detail string
+  let activeIndex = 0;
+  for (let i = 0; i < subtasks.length; i++) {
+    const keywords = SUBTASK_KEYWORDS[subtasks[i].key] ?? [];
+    for (const kw of keywords) {
+      if (detail.includes(kw)) {
+        activeIndex = i;
+        break;
+      }
+    }
+  }
+
+  for (let i = 0; i < subtasks.length; i++) {
+    if (i < activeIndex) {
+      result[subtasks[i].key] = 'completed';
+    } else if (i === activeIndex) {
+      result[subtasks[i].key] = 'active';
+    } else {
+      result[subtasks[i].key] = 'pending';
+    }
+  }
+
+  return result;
+}
+
+// ── Time formatting helpers ──
+
+function formatElapsed(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0秒';
+  const s = Math.floor(seconds);
+  if (s < 60) return `${s}秒`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}分${rem}秒`;
+}
+
+function formatRemaining(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return '计算中...';
+  const s = Math.round(seconds);
+  if (s < 60) return `约${s}秒`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `约${m}分${rem}秒`;
+}
+
+// ── Fallback stage inference from legacy status ──
+
+function inferStageFromStatus(status: string): number {
+  switch (status) {
+    case 'uploading': return 0;
+    case 'transcribing': return 3;
+    case 'matching': return 4;
+    case 'aligning': return 6;
+    case 'processing': return 4;
+    case 'completed': return 8;
+    case 'failed': return 0;
+    default: return 0;
+  }
+}
+
+// ── Safe percentage formatting ──
+
+function safePercent(progress: number): number {
+  const pct = Math.round(progress * 100);
+  return Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
+}
+
+// ── Sub-task status icon components ──
+
+function SubTaskCheckIcon() {
+  return (
+    <svg className="h-3.5 w-3.5 text-success shrink-0" viewBox="0 0 20 20" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function SubTaskSpinnerIcon() {
+  return (
+    <div className="h-3 w-3 rounded-full border-[1.5px] border-amber border-t-transparent animate-spin shrink-0" />
+  );
+}
+
+function SubTaskPendingIcon() {
+  return (
+    <div className="h-2 w-2 rounded-full bg-text-faint shrink-0" />
+  );
+}
+
+// ── Chevron icon ──
+
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      className={`h-3.5 w-3.5 text-text-faint transition-transform duration-300 ${expanded ? 'rotate-90' : ''}`}
+      viewBox="0 0 20 20"
+      fill="currentColor"
+    >
+      <path
+        fillRule="evenodd"
+        d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+// ── Component ──
 
 export default function ProcessingPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { status, progress, error, audioDuration } = useJobStore();
+
   const setJob = useJobStore((s) => s.setJob);
+  const setActiveJob = useJobStore((s) => s.setActiveJob);
+  const { status, progress, error, stageProgress, elapsedSeconds, estimatedRemainingSeconds } = useActiveJob();
+
+  // Track which stages are expanded (by stage id)
+  const [expandedStages, setExpandedStages] = useState<Set<number>>(new Set());
+
+  const toggleStage = useCallback((stageId: number) => {
+    setExpandedStages((prev) => {
+      const next = new Set(prev);
+      if (next.has(stageId)) {
+        next.delete(stageId);
+      } else {
+        next.add(stageId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Ensure active job is set when navigating directly to this page
+  useEffect(() => {
+    if (id) {
+      setActiveJob(id);
+    }
+  }, [id, setActiveJob]);
 
   useJob(id);
 
@@ -48,77 +276,163 @@ export default function ProcessingPage() {
     }
   }, [status, id, navigate]);
 
-  const stageLabel = STAGE_LABELS[status] ?? status;
-  const stageDesc = STAGE_DESCRIPTIONS[status] ?? '';
-  const pct = Math.round(progress * 100);
-  const estimatedRemaining =
-    audioDuration && progress > 0 && progress < 1
-      ? ((audioDuration * 0.3) / progress) * (1 - progress)
-      : null;
-
   const isFailed = status === 'failed';
   const isComplete = status === 'completed';
-  const circumference = 2 * Math.PI * 54;
+  const pct = safePercent(progress);
+
+  // Determine current stage (1-based) from stageProgress or fallback
+  const currentStage = stageProgress?.stage ?? inferStageFromStatus(status);
+  const stageDetail = stageProgress?.stage_detail ?? '';
+  const elapsed = elapsedSeconds;
+  const estimatedRemaining = estimatedRemainingSeconds;
+
+  // All stages collapsed by default — user clicks to expand/collapse
 
   return (
     <>
       <Stepper currentStep={1} jobId={id} />
       <PageContainer>
-        <div className="flex flex-col items-center gap-10 py-16 animate-fade-in-up">
+        <div className="flex flex-col items-center gap-8 py-12 animate-fade-in-up">
 
-          {/* Circular progress */}
-          <div className="relative h-44 w-44">
-            {/* Ambient glow */}
-            <div
-              className="absolute inset-0 rounded-full blur-2xl transition-opacity duration-1000"
-              style={{
-                background: isFailed
-                  ? 'radial-gradient(circle, rgba(248,113,113,0.15) 0%, transparent 70%)'
-                  : isComplete
-                    ? 'radial-gradient(circle, rgba(52,211,153,0.15) 0%, transparent 70%)'
-                    : 'radial-gradient(circle, rgba(232,168,56,0.12) 0%, transparent 70%)',
-              }}
-            />
+          {/* ── Stage todo list ── */}
+          <div className="w-full max-w-md">
+            <ul className="flex flex-col gap-1">
+              {PROCESSING_STAGES.map((stage) => {
+                const isDone = isComplete || currentStage > stage.id;
+                const isActive = !isComplete && !isFailed && currentStage === stage.id;
+                const isPending = !isDone && !isActive;
+                const stageStatus: 'done' | 'active' | 'pending' = isDone ? 'done' : isActive ? 'active' : 'pending';
 
-            <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
-              {/* Track */}
-              <circle
-                cx="60" cy="60" r="54"
-                fill="none"
-                stroke="var(--color-elevated)"
-                strokeWidth="5"
-              />
-              {/* Progress arc */}
-              <circle
-                cx="60" cy="60" r="54"
-                fill="none"
-                stroke={isFailed ? 'var(--color-danger)' : isComplete ? 'var(--color-success)' : 'var(--color-amber)'}
-                strokeWidth="5"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={circumference * (1 - progress)}
-                className="transition-[stroke-dashoffset] duration-700 ease-out"
-              />
-            </svg>
+                const subtasks = STAGE_SUBTASKS[stage.id] ?? [];
+                const hasSubtasks = subtasks.length > 0;
+                const isExpanded = expandedStages.has(stage.id);
+                const subtaskStatuses = inferSubTaskStatuses(stage.id, stageStatus, stageDetail);
 
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="font-display text-4xl font-bold tracking-tight text-text-primary">{pct}</span>
-              <span className="font-mono text-xs text-text-muted">%</span>
-            </div>
+                return (
+                  <li key={stage.id} className="transition-all duration-500">
+                    {/* Main stage row */}
+                    <div
+                      className={`
+                        flex items-start gap-3 rounded-xl px-4 py-3 transition-all duration-500
+                        ${isActive ? 'bg-amber-glow/40' : ''}
+                        ${hasSubtasks ? 'cursor-pointer select-none' : ''}
+                      `}
+                      onClick={hasSubtasks ? () => toggleStage(stage.id) : undefined}
+                    >
+                      {/* Status icon */}
+                      <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
+                        {isDone && (
+                          <svg
+                            className="h-5 w-5 text-success animate-fade-in"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                        {isActive && (
+                          <div className="h-4 w-4 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+                        )}
+                        {isPending && (
+                          <div className="h-3 w-3 rounded-full bg-text-faint" />
+                        )}
+                      </div>
+
+                      {/* Text */}
+                      <div className="min-w-0 flex-1">
+                        <span
+                          className={`
+                            font-display text-sm font-medium transition-colors duration-300
+                            ${isDone ? 'text-text-secondary' : ''}
+                            ${isActive ? 'text-amber' : ''}
+                            ${isPending ? 'text-text-muted' : ''}
+                          `}
+                        >
+                          {stage.name}
+                        </span>
+                        {isActive && stageDetail && !isExpanded && (
+                          <p className="mt-0.5 text-xs text-text-muted animate-fade-in truncate">
+                            {stageDetail}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Chevron */}
+                      {hasSubtasks && (
+                        <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center">
+                          <ChevronIcon expanded={isExpanded} />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Expandable sub-tasks */}
+                    <div
+                      className="overflow-hidden transition-all duration-300 ease-in-out"
+                      style={{
+                        maxHeight: isExpanded ? `${subtasks.length * 36 + 8}px` : '0px',
+                        opacity: isExpanded ? 1 : 0,
+                      }}
+                    >
+                      <div className="ml-[2.75rem] pb-1 pt-0.5">
+                        {subtasks.map((subtask, idx) => {
+                          const isLast = idx === subtasks.length - 1;
+                          const stStatus = subtaskStatuses[subtask.key] ?? 'pending';
+                          const connector = isLast ? '\u2514\u2500' : '\u251C\u2500';
+
+                          return (
+                            <div
+                              key={subtask.key}
+                              className="flex items-center gap-2 py-1"
+                            >
+                              {/* Tree connector */}
+                              <span
+                                className="text-xs font-mono select-none shrink-0"
+                                style={{ color: 'rgba(255,255,255,0.15)', width: '1rem' }}
+                              >
+                                {connector}
+                              </span>
+
+                              {/* Sub-task status icon */}
+                              <div className="flex h-4 w-4 items-center justify-center shrink-0">
+                                {stStatus === 'completed' && <SubTaskCheckIcon />}
+                                {stStatus === 'active' && <SubTaskSpinnerIcon />}
+                                {stStatus === 'pending' && <SubTaskPendingIcon />}
+                              </div>
+
+                              {/* Sub-task label */}
+                              <span
+                                className={`
+                                  text-xs transition-colors duration-300
+                                  ${stStatus === 'completed' ? 'text-text-secondary/70' : ''}
+                                  ${stStatus === 'active' ? 'text-text-secondary' : ''}
+                                  ${stStatus === 'pending' ? 'text-text-muted/50' : ''}
+                                `}
+                              >
+                                {subtask.label}
+                              </span>
+
+                              {/* Show detail text next to active sub-task */}
+                              {stStatus === 'active' && isActive && stageDetail && (
+                                <span className="text-[11px] text-text-muted truncate ml-1 animate-fade-in">
+                                  {stageDetail}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
 
-          {/* Stage label */}
-          <div className="text-center">
-            <p className="font-display text-xl font-semibold text-text-primary">{stageLabel}</p>
-            <p className="mt-2 text-sm text-text-muted">{stageDesc}</p>
-            {estimatedRemaining !== null && (
-              <p className="mt-2 font-mono text-xs text-text-muted">
-                预计剩余 {formatDuration(estimatedRemaining)}
-              </p>
-            )}
-          </div>
-
-          {/* Progress bar */}
+          {/* ── Progress bar ── */}
           <div className="w-full max-w-md">
             <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
               <div
@@ -128,22 +442,28 @@ export default function ProcessingPage() {
                 style={{ width: `${pct}%` }}
               />
             </div>
+
+            {/* Percentage — show "准备中..." when 0 and not yet started */}
+            <div className="mt-2 text-center">
+              <span className="font-mono text-xs text-text-muted">
+                {pct === 0 && !isComplete && !isFailed ? '准备中...' : `${pct}%`}
+              </span>
+            </div>
+
+            {/* Time info */}
+            {!isComplete && !isFailed && (
+              <div className="mt-1 flex justify-between">
+                <span className="font-mono text-[11px] text-text-muted">
+                  已耗时: {formatElapsed(elapsed)}
+                </span>
+                <span className="font-mono text-[11px] text-text-muted">
+                  预计剩余: {formatRemaining(estimatedRemaining)}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Pulsing dots */}
-          {!isComplete && !isFailed && (
-            <div className="flex gap-2">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="h-1.5 w-1.5 rounded-full bg-amber animate-gentle-pulse"
-                  style={{ animationDelay: `${i * 200}ms` }}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Error */}
+          {/* ── Error state ── */}
           {error && (
             <div className="max-w-md animate-slide-down rounded-2xl border border-danger/20 bg-danger-surface p-5">
               <p className="font-display text-sm font-semibold text-danger">处理出错</p>
@@ -157,7 +477,7 @@ export default function ProcessingPage() {
             </div>
           )}
 
-          {/* Completed */}
+          {/* ── Completed state ── */}
           {isComplete && (
             <div className="animate-slide-down rounded-2xl border border-success/20 bg-success-surface p-5 text-center">
               <div className="flex items-center justify-center gap-2 text-sm text-success">

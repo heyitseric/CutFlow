@@ -3,10 +3,12 @@ import { connectJobSSE } from '../api/client';
 import { useJobStore } from '../stores/jobStore';
 
 /**
- * SSE hook: subscribes to job status updates and auto-reconnects.
+ * SSE hook: subscribes to job status updates for a specific jobId.
+ * Supports multiple concurrent connections (one per jobId).
+ * Auto-reconnects on error.
  */
 export function useJob(jobId: string | null | undefined) {
-  const updateFromSSE = useJobStore((s) => s.updateFromSSE);
+  const updateJobFromSSE = useJobStore((s) => s.updateJobFromSSE);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -20,7 +22,7 @@ export function useJob(jobId: string | null | undefined) {
       const es = connectJobSSE(
         jobId!,
         (data) => {
-          updateFromSSE(data);
+          updateJobFromSSE(jobId!, data);
           // close when terminal
           if (data.status === 'completed' || data.status === 'failed') {
             es.close();
@@ -43,5 +45,5 @@ export function useJob(jobId: string | null | undefined) {
       clearTimeout(reconnectTimer);
       esRef.current?.close();
     };
-  }, [jobId, updateFromSSE]);
+  }, [jobId, updateJobFromSSE]);
 }

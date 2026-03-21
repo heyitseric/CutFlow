@@ -16,8 +16,22 @@ def get_transcriber(provider: str = "") -> Transcriber:
         return LocalWhisperTranscriber(model_name=settings.WHISPER_MODEL)
 
     elif provider == "volcengine":
-        # For volcengine, we still need local transcription first.
-        # Return local transcriber; cloud correction is applied separately.
+        # Prefer cloud Caption API if credentials are configured
+        if settings.VOLCENGINE_CAPTION_APPID and settings.VOLCENGINE_CAPTION_TOKEN:
+            from app.providers.cloud.volcengine_caption import (
+                VolcengineCaptionTranscriber,
+            )
+            logger.info("Using Volcengine Caption API for transcription")
+            return VolcengineCaptionTranscriber(
+                appid=settings.VOLCENGINE_CAPTION_APPID,
+                token=settings.VOLCENGINE_CAPTION_TOKEN,
+            )
+
+        # Fall back to local Whisper if no caption credentials
+        logger.warning(
+            "VOLCENGINE_CAPTION_APPID / TOKEN not set, "
+            "falling back to local Whisper transcriber"
+        )
         try:
             from app.providers.local.whisper_transcriber import LocalWhisperTranscriber
             return LocalWhisperTranscriber(model_name=settings.WHISPER_MODEL)

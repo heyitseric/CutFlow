@@ -4,7 +4,7 @@ import PageContainer from '../components/layout/PageContainer';
 import Stepper from '../components/layout/Stepper';
 import SegmentRow from '../components/review/SegmentRow';
 import TimelinePreview from '../components/review/TimelinePreview';
-import { useJobStore } from '../stores/jobStore';
+import { useJobStore, useActiveJob } from '../stores/jobStore';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { getJob } from '../api/client';
 import type { PauseSegment } from '../api/types';
@@ -13,18 +13,22 @@ export default function ReviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const {
-    alignment,
-    audioDuration,
-    editedSegments,
-    editedPauses,
-    setJob,
-    approveSegment,
-    rejectSegment,
-    updateSegment,
-    updatePause,
-    batchUpdatePauses,
-  } = useJobStore();
+  const setActiveJob = useJobStore((s) => s.setActiveJob);
+  const setJob = useJobStore((s) => s.setJob);
+  const approveSegment = useJobStore((s) => s.approveSegment);
+  const rejectSegment = useJobStore((s) => s.rejectSegment);
+  const updateSegment = useJobStore((s) => s.updateSegment);
+  const updatePause = useJobStore((s) => s.updatePause);
+  const batchUpdatePauses = useJobStore((s) => s.batchUpdatePauses);
+
+  const { alignment, audioDuration, editedSegments, editedPauses } = useActiveJob();
+
+  // Ensure active job is set
+  useEffect(() => {
+    if (id) {
+      setActiveJob(id);
+    }
+  }, [id, setActiveJob]);
 
   useEffect(() => {
     if (id && !alignment) {

@@ -8,7 +8,7 @@ import { useJobStore } from '../stores/jobStore';
 
 export default function UploadPage() {
   const navigate = useNavigate();
-  const setJob = useJobStore((s) => s.setJob);
+  const addJob = useJobStore((s) => s.addJob);
 
   const [scriptFile, setScriptFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -31,9 +31,10 @@ export default function UploadPage() {
     setUploading(true);
     setError(null);
     try {
-      const job = await uploadJob(scriptFile, audioFile, provider);
-      setJob(job);
-      navigate(`/processing/${job.id}`);
+      const result = await uploadJob(scriptFile, audioFile, provider);
+      // Add job to multi-job store (does NOT destroy existing jobs)
+      addJob(result.id, scriptFile.name, audioFile.name);
+      navigate(`/processing/${result.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : '上传失败');
     } finally {

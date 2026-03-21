@@ -117,6 +117,18 @@ class JobStatus(BaseModel):
     updated_at: datetime
 
 
+class JobSummary(BaseModel):
+    """Lightweight job info for the job list endpoint."""
+    job_id: str
+    status: str  # processing, completed, failed
+    progress: float = 0.0
+    stage_name: str = ""
+    script_name: str = ""
+    audio_name: str = ""
+    created_at: datetime
+    elapsed_seconds: float = 0.0
+
+
 class JobResponse(BaseModel):
     job_id: str
     state: JobState

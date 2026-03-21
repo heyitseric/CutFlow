@@ -2,7 +2,7 @@ import logging
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 
 from app.config import get_settings
 from app.jobs.manager import get_job_manager
@@ -17,6 +17,7 @@ async def upload_files(
     background_tasks: BackgroundTasks,
     script: UploadFile = File(..., description="Markdown script file"),
     audio: UploadFile = File(..., description="Audio file (MP3/WAV)"),
+    provider: str = Form("local", description="Transcription provider: local or cloud"),
 ):
     """
     Upload script (Markdown) and audio (MP3) files.
@@ -64,11 +65,16 @@ async def upload_files(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save audio: {e}")
 
+    # Map frontend provider names to backend provider identifiers
+    provider_map = {"cloud": "volcengine", "local": "local"}
+    resolved_provider = provider_map.get(provider, provider)
+
     # Update job with file info
     job.script_path = str(script_path)
     job.audio_path = str(audio_path)
     job.script_filename = script_filename
     job.audio_filename = audio_filename
+    job.provider = resolved_provider
 
     logger.info(
         f"Job {job.job_id}: uploaded script={script_filename}, audio={audio_filename}"

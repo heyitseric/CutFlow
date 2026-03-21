@@ -35,16 +35,24 @@ def _get_whisper_backend() -> str:
     return "none"
 
 
+# Module-level model cache for singleton behaviour across instances.
+_cached_models: dict[str, object] = {}
+
+
 class LocalWhisperTranscriber(Transcriber):
     def __init__(self, model_name: str = "large-v3", device: str = "auto"):
         self.model_name = model_name
         self.device = device
         self.backend = _get_whisper_backend()
-        self._model = None
+        # Re-use a previously loaded model for the same (backend, model_name)
+        cache_key = f"{self.backend}:{model_name}"
+        self._model = _cached_models.get(cache_key)
 
     def _ensure_model(self):
         if self._model is not None:
             return
+
+        cache_key = f"{self.backend}:{self.model_name}"
 
         if self.backend == "whisperx":
             import whisperx
@@ -80,6 +88,10 @@ class LocalWhisperTranscriber(Transcriber):
                 "  pip install stable-ts mlx-whisper  (Apple Silicon)\n"
                 "  pip install openai-whisper    (CPU fallback)\n"
             )
+
+        # Store in module-level cache so subsequent instances reuse it
+        _cached_models[cache_key] = self._model
+        logger.info(f"Model cached: {cache_key}")
 
     async def transcribe(
         self,

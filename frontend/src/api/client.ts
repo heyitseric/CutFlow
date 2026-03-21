@@ -1,4 +1,4 @@
-import type { JobResponse, DictionaryData, DictionaryEntry, ExportRequest } from './types';
+import type { JobResponse, JobSummary, SSEStatusData, DictionaryData, DictionaryEntry, ExportRequest } from './types';
 
 const BASE = '/api';
 
@@ -16,17 +16,24 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 // ── Job endpoints ──
 
+interface UploadResponse {
+  job_id: string;
+  message: string;
+  script_filename: string;
+  audio_filename: string;
+}
+
 export async function uploadJob(
   scriptFile: File,
   audioFile: File,
   provider: 'local' | 'cloud',
-): Promise<JobResponse> {
+): Promise<{ id: string; scriptFilename: string; audioFilename: string }> {
   const form = new FormData();
   form.append('script', scriptFile);
   form.append('audio', audioFile);
   form.append('provider', provider);
 
-  const res = await fetch(`${BASE}/jobs/upload`, {
+  const res = await fetch(`${BASE}/upload`, {
     method: 'POST',
     body: form,
   });
@@ -34,27 +41,113 @@ export async function uploadJob(
     const body = await res.text();
     throw new Error(`Upload failed ${res.status}: ${body}`);
   }
-  return res.json();
+  const raw: UploadResponse = await res.json();
+  return {
+    id: raw.job_id,
+    scriptFilename: raw.script_filename,
+    audioFilename: raw.audio_filename,
+  };
 }
 
-export async function getJob(jobId: string): Promise<JobResponse> {
-  return request<JobResponse>(`/jobs/${jobId}`);
+/** Raw shape returned by the backend GET /api/jobs/:id */
+interface BackendJobResponse {
+  job_id: string;
+  state: string;
+  progress: number;
+  message: string;
+  created_at: string;
+  updated_at: string;
+  script_filename: string;
+  audio_filename: string;
+  alignment: JobResponse['alignment'];
+  transcription: unknown;
+}
+
+function mapBackendState(state: string): string {
+  if (state === 'review' || state === 'done' || state === 'exporting') return 'completed';
+  if (state === 'error') return 'failed';
+  return 'processing';
+}
+
+export async function getJob(jobId: string): Promise<JobResponse & { scriptName: string; audioName: string; createdAt: string }> {
+  const raw = await request<BackendJobResponse>(`/jobs/${jobId}`);
+  return {
+    id: raw.job_id,
+    status: mapBackendState(raw.state),
+    progress: raw.progress,
+    audioDuration: null,
+    alignment: raw.alignment,
+    error: raw.state === 'error' ? raw.message : null,
+    scriptName: raw.script_filename,
+    audioName: raw.audio_filename,
+    createdAt: raw.created_at,
+  };
+}
+
+export async function listJobs(): Promise<JobSummary[]> {
+  return request<JobSummary[]>('/jobs');
+}
+
+/** Mapped SSE data that matches what the job store expects */
+export interface SSEMappedData {
+  status: string;
+  progress: number;
+  error: string | null;
+  elapsedSeconds: number;
+  estimatedRemainingSeconds: number | null;
+  stageProgress?: {
+    stage: number;
+    stage_name: string;
+    stage_detail: string;
+    progress: number;
+    elapsed_seconds: number;
+    estimated_remaining_seconds: number | null;
+  };
+}
+
+function mapSSEStatus(state: string): string {
+  if (state === 'review' || state === 'done' || state === 'exporting') return 'completed';
+  if (state === 'error') return 'failed';
+  return 'processing';
 }
 
 export function connectJobSSE(
   jobId: string,
-  onMessage: (data: JobResponse) => void,
+  onMessage: (data: SSEMappedData) => void,
   onError?: (err: Event) => void,
 ): EventSource {
-  const es = new EventSource(`${BASE}/jobs/${jobId}/stream`);
-  es.onmessage = (event) => {
+  const es = new EventSource(`${BASE}/jobs/${jobId}/status`);
+
+  function handleEvent(event: MessageEvent) {
     try {
-      const data = JSON.parse(event.data) as JobResponse;
-      onMessage(data);
+      const raw = JSON.parse(event.data) as SSEStatusData;
+      const mapped: SSEMappedData = {
+        status: mapSSEStatus(raw.state),
+        progress: raw.progress,
+        error: raw.state === 'error' ? (raw.message || 'Unknown error') : null,
+        elapsedSeconds: raw.elapsed_seconds,
+        estimatedRemainingSeconds: raw.estimated_remaining_seconds,
+        stageProgress: {
+          stage: raw.stage,
+          stage_name: raw.stage_name,
+          stage_detail: raw.stage_detail,
+          progress: raw.progress,
+          elapsed_seconds: raw.elapsed_seconds,
+          estimated_remaining_seconds: raw.estimated_remaining_seconds,
+        },
+      };
+      onMessage(mapped);
     } catch {
       // ignore parse errors
     }
-  };
+  }
+
+  // Backend sends named events: "status" and "complete"
+  es.addEventListener('status', handleEvent);
+  es.addEventListener('complete', handleEvent);
+  // Also handle unnamed messages as fallback
+  es.onmessage = handleEvent;
+
   es.onerror = (err) => {
     onError?.(err);
   };
