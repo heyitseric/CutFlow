@@ -98,7 +98,7 @@ export default function UploadPage() {
           <h3 className="mb-4 font-display text-sm font-semibold text-text-secondary">转录引擎</h3>
           <div className="grid gap-4 md:grid-cols-2">
             <label
-              className={`group flex cursor-pointer items-center gap-4 rounded-xl border-2 p-4 transition-all duration-300 ${
+              className={`group flex cursor-pointer items-center gap-4 rounded-xl border-2 p-4 transition-all duration-300 transition-cinematic ${
                 provider === 'cloud'
                   ? 'border-amber/40 bg-amber-glow'
                   : 'border-border hover:border-border hover:bg-elevated'
@@ -112,7 +112,7 @@ export default function UploadPage() {
                 onChange={() => setProvider('cloud')}
                 className="sr-only"
               />
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors transition-smooth ${
                 provider === 'cloud' ? 'bg-amber/15 text-amber' : 'bg-elevated text-text-muted'
               }`}>
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -120,7 +120,7 @@ export default function UploadPage() {
                 </svg>
               </div>
               <div>
-                <p className={`text-sm font-medium transition-colors ${provider === 'cloud' ? 'text-amber' : 'text-text-primary'}`}>
+                <p className={`text-sm font-medium transition-colors transition-smooth ${provider === 'cloud' ? 'text-amber' : 'text-text-primary'}`}>
                   云端模型（Seed 2.0 Lite）
                 </p>
                 <p className="mt-0.5 text-xs text-text-muted">速度快，精度高，需要网络</p>
@@ -131,7 +131,7 @@ export default function UploadPage() {
             </label>
 
             <label
-              className={`group flex cursor-pointer items-center gap-4 rounded-xl border-2 p-4 transition-all duration-300 ${
+              className={`group flex cursor-pointer items-center gap-4 rounded-xl border-2 p-4 transition-all duration-300 transition-cinematic ${
                 provider === 'local'
                   ? 'border-teal/40 bg-teal-glow'
                   : 'border-border hover:border-border hover:bg-elevated'
@@ -145,7 +145,7 @@ export default function UploadPage() {
                 onChange={() => setProvider('local')}
                 className="sr-only"
               />
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors transition-smooth ${
                 provider === 'local' ? 'bg-teal/15 text-teal' : 'bg-elevated text-text-muted'
               }`}>
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -153,7 +153,7 @@ export default function UploadPage() {
                 </svg>
               </div>
               <div>
-                <p className={`text-sm font-medium transition-colors ${provider === 'local' ? 'text-teal' : 'text-text-primary'}`}>
+                <p className={`text-sm font-medium transition-colors transition-smooth ${provider === 'local' ? 'text-teal' : 'text-text-primary'}`}>
                   本地模型
                 </p>
                 <p className="mt-0.5 text-xs text-text-muted">离线可用，速度取决于硬件</p>
@@ -181,7 +181,7 @@ export default function UploadPage() {
             className={`
               group relative overflow-hidden rounded-2xl px-12 py-3.5
               font-display text-base font-semibold tracking-wide
-              transition-all duration-300
+              transition-all duration-300 transition-cinematic transition-spring
               ${!scriptFile || !audioFile || uploading
                 ? 'bg-elevated text-text-muted cursor-not-allowed'
                 : 'bg-amber text-deep hover:bg-amber/90 hover:shadow-lg hover:shadow-amber/20 active:scale-[0.98]'
@@ -199,15 +199,10 @@ export default function UploadPage() {
             ) : (
               <>
                 开始处理
-                <span className="ml-2 inline-block transition-transform group-hover:translate-x-1">→</span>
+                <span className="ml-2 inline-block transition-transform transition-spring group-hover:translate-x-1">→</span>
               </>
             )}
           </button>
-          {(!scriptFile || !audioFile) && !uploading && (
-            <p className="mt-3 text-xs text-text-muted">
-              {!scriptFile ? '请先上传脚本文件' : '请先上传音频文件'}
-            </p>
-          )}
         </div>
       </PageContainer>
     </>

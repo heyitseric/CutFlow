@@ -107,13 +107,13 @@ export default function ReviewPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleKeepAll}
-                className="rounded-lg bg-success/15 px-3.5 py-1.5 text-xs font-medium text-success hover:bg-success/20 transition-colors"
+                className="rounded-lg bg-success/15 px-3.5 py-1.5 text-xs font-medium text-success hover:bg-success/20 transition-colors transition-smooth"
               >
                 全部保留
               </button>
               <button
                 onClick={() => navigate(`/export/${id}`)}
-                className="rounded-lg bg-amber px-4 py-1.5 text-xs font-semibold text-deep hover:bg-amber/90 transition-colors"
+                className="rounded-lg bg-amber px-4 py-1.5 text-xs font-semibold text-deep hover:bg-amber/90 transition-colors transition-smooth"
               >
                 前往导出 →
               </button>

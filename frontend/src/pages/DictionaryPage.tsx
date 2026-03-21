@@ -122,12 +122,12 @@ export default function DictionaryPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索词条..."
-            className="w-full rounded-xl border border-border bg-surface pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-amber/40 focus:ring-1 focus:ring-amber/20 transition-colors"
+            className="w-full rounded-xl border border-border bg-surface pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-amber/40 focus:ring-1 focus:ring-amber/20 transition-colors transition-smooth"
           />
         </div>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-medium text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors"
+          className="rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-medium text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors transition-smooth"
         >
           导入 JSON
         </button>
@@ -143,7 +143,7 @@ export default function DictionaryPage() {
         />
         <button
           onClick={handleExport}
-          className="rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-medium text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors"
+          className="rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-medium text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors transition-smooth"
         >
           导出 JSON
         </button>
@@ -189,7 +189,7 @@ export default function DictionaryPage() {
           <button
             onClick={handleAdd}
             disabled={adding || !newWrong.trim() || !newCorrect.trim()}
-            className="rounded-xl bg-amber px-6 py-2 text-sm font-medium text-deep hover:bg-amber/90 disabled:bg-elevated disabled:text-text-muted transition-colors"
+            className="rounded-xl bg-amber px-6 py-2 text-sm font-medium text-deep hover:bg-amber/90 disabled:bg-elevated disabled:text-text-muted transition-colors transition-smooth"
           >
             {adding ? '添加中...' : '添加'}
           </button>
@@ -234,7 +234,7 @@ export default function DictionaryPage() {
               </tr>
             ) : (
               filtered.map((entry) => (
-                <tr key={entry.wrong} className="hover:bg-elevated/30 transition-colors">
+                <tr key={entry.wrong} className="hover:bg-elevated/30 transition-colors transition-smooth">
                   <td className="px-5 py-3">
                     <span className="rounded-md bg-danger-surface px-2 py-0.5 text-danger line-through">
                       {entry.wrong}
@@ -253,7 +253,7 @@ export default function DictionaryPage() {
                   <td className="px-5 py-3">
                     <button
                       onClick={() => handleDelete(entry.wrong)}
-                      className="rounded-lg px-2.5 py-1 text-xs text-danger hover:bg-danger-surface transition-colors"
+                      className="rounded-lg px-2.5 py-1 text-xs text-danger hover:bg-danger-surface transition-colors transition-smooth"
                     >
                       删除
                     </button>

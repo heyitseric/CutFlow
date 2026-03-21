@@ -80,6 +80,9 @@ async def upload_files(
         f"Job {job.job_id}: uploaded script={script_filename}, audio={audio_filename}"
     )
 
+    # Persist the newly created job immediately (before processing starts)
+    manager.persist()
+
     # Kick off background processing
     background_tasks.add_task(run_pipeline, job)
 

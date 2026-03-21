@@ -209,7 +209,7 @@ function SubTaskPendingIcon() {
 function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
     <svg
-      className={`h-3.5 w-3.5 text-text-faint transition-transform duration-300 ${expanded ? 'rotate-90' : ''}`}
+      className={`h-3.5 w-3.5 text-text-faint transition-transform duration-300 transition-spring ${expanded ? 'rotate-90' : ''}`}
       viewBox="0 0 20 20"
       fill="currentColor"
     >
@@ -311,11 +311,11 @@ export default function ProcessingPage() {
                 const subtaskStatuses = resolveSubTaskStatuses(stage.id, stageStatus, stageProgress?.sub_tasks, stageSubtasks);
 
                 return (
-                  <li key={stage.id} className="transition-all duration-500">
+                  <li key={stage.id} className="transition-all duration-500 transition-cinematic">
                     {/* Main stage row */}
                     <div
                       className={`
-                        flex items-start gap-3 rounded-xl px-4 py-3 transition-all duration-500
+                        flex items-start gap-3 rounded-xl px-4 py-3 transition-all duration-500 transition-cinematic
                         ${isActive ? 'bg-amber-glow/40' : ''}
                         ${hasSubtasks ? 'cursor-pointer select-none' : ''}
                       `}
@@ -348,7 +348,7 @@ export default function ProcessingPage() {
                       <div className="min-w-0 flex-1">
                         <span
                           className={`
-                            font-display text-sm font-medium transition-colors duration-300
+                            font-display text-sm font-medium transition-colors duration-300 transition-smooth
                             ${isDone ? 'text-text-secondary' : ''}
                             ${isActive ? 'text-amber' : ''}
                             ${isPending ? 'text-text-muted' : ''}
@@ -373,7 +373,7 @@ export default function ProcessingPage() {
 
                     {/* Expandable sub-tasks */}
                     <div
-                      className="overflow-hidden transition-all duration-300 ease-in-out"
+                      className="overflow-hidden transition-all duration-300 transition-cinematic"
                       style={{
                         maxHeight: isExpanded ? `${subtasks.length * 36 + 8}px` : '0px',
                         opacity: isExpanded ? 1 : 0,
@@ -408,7 +408,7 @@ export default function ProcessingPage() {
                               {/* Sub-task label */}
                               <span
                                 className={`
-                                  text-xs transition-colors duration-300
+                                  text-xs transition-colors duration-300 transition-smooth
                                   ${stStatus === 'completed' ? 'text-text-secondary/70' : ''}
                                   ${stStatus === 'active' ? 'text-text-secondary' : ''}
                                   ${stStatus === 'pending' ? 'text-text-muted/50' : ''}
@@ -438,7 +438,7 @@ export default function ProcessingPage() {
           <div className="w-full max-w-md">
             <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
               <div
-                className={`h-full rounded-full transition-all duration-700 ease-out ${
+                className={`h-full rounded-full transition-all duration-700 transition-smooth ${
                   isFailed ? 'bg-danger' : isComplete ? 'bg-success' : 'bg-amber progress-stripe'
                 }`}
                 style={{ width: `${pct}%` }}
@@ -472,7 +472,7 @@ export default function ProcessingPage() {
               <p className="mt-2 text-sm text-text-secondary">{error}</p>
               <button
                 onClick={() => navigate('/')}
-                className="mt-4 rounded-xl bg-danger/10 px-5 py-2 text-sm font-medium text-danger hover:bg-danger/20 transition-colors"
+                className="mt-4 rounded-xl bg-danger/10 px-5 py-2 text-sm font-medium text-danger hover:bg-danger/20 transition-colors transition-smooth"
               >
                 重新上传
               </button>

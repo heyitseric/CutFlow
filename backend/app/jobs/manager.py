@@ -3,6 +3,7 @@ import math
 import time
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional
 
 from app.models.schemas import (
@@ -45,6 +46,9 @@ class JobData:
         self.audio_path: str = ""
         self.script_filename: str = ""
         self.audio_filename: str = ""
+
+        # User-customisable display name (falls back to script_filename)
+        self.display_name: str = ""
 
         # Pipeline results
         self.transcription: Optional[TranscriptionResult] = None
@@ -107,10 +111,46 @@ class JobData:
 
 
 class JobManager:
-    """In-memory job state management."""
+    """In-memory job state management with JSON-file persistence."""
 
-    def __init__(self):
+    def __init__(self, data_dir: Optional[Path] = None):
         self._jobs: dict[str, JobData] = {}
+        self._data_dir = data_dir
+
+        # Restore persisted jobs on startup
+        if data_dir:
+            self._restore()
+
+    # ── Persistence ──
+
+    def _restore(self) -> None:
+        """Load job metadata from disk on startup."""
+        if not self._data_dir:
+            return
+        from app.jobs.persistence import dict_to_job_data, load_jobs
+
+        saved = load_jobs(self._data_dir)
+        for job_id, d in saved.items():
+            try:
+                job = dict_to_job_data(d, JobData)
+                self._jobs[job_id] = job
+            except Exception as e:
+                logger.warning("Failed to restore job %s: %s", job_id, e)
+        if saved:
+            logger.info("Restored %d jobs from disk", len(self._jobs))
+
+    def persist(self) -> None:
+        """Flush current job metadata to disk."""
+        if not self._data_dir:
+            return
+        from app.jobs.persistence import job_data_to_dict, save_jobs
+
+        jobs_dict = {
+            jid: job_data_to_dict(j) for jid, j in self._jobs.items()
+        }
+        save_jobs(self._data_dir, jobs_dict)
+
+    # ── CRUD ──
 
     def create_job(self) -> JobData:
         """Create a new job and return it."""
@@ -118,6 +158,7 @@ class JobManager:
         job = JobData(job_id)
         self._jobs[job_id] = job
         logger.info(f"Created job {job_id}")
+        self.persist()
         return job
 
     def get_job(self, job_id: str) -> Optional[JobData]:
@@ -129,11 +170,22 @@ class JobManager:
         return list(self._jobs.values())
 
     def delete_job(self, job_id: str) -> bool:
-        """Delete a job."""
+        """Delete a job from the in-memory store."""
         if job_id in self._jobs:
             del self._jobs[job_id]
+            self.persist()
             return True
         return False
+
+    def rename_job(self, job_id: str, new_name: str) -> bool:
+        """Set the user-visible display name for a job."""
+        job = self._jobs.get(job_id)
+        if not job:
+            return False
+        job.display_name = new_name
+        job.updated_at = datetime.now()
+        self.persist()
+        return True
 
     def update_job(
         self,
@@ -150,6 +202,7 @@ class JobManager:
         """Update job state."""
         job = self._jobs.get(job_id)
         if job:
+            old_state = job.state
             job.update(
                 state=state,
                 progress=progress,
@@ -160,6 +213,11 @@ class JobManager:
                 estimated_remaining_seconds=estimated_remaining_seconds,
                 sub_tasks=sub_tasks,
             )
+            # Persist on terminal state transitions (not on every progress tick)
+            if state is not None and state != old_state:
+                terminal = {JobState.REVIEW, JobState.DONE, JobState.ERROR}
+                if state in terminal:
+                    self.persist()
         return job
 
 
@@ -170,5 +228,7 @@ _job_manager: Optional[JobManager] = None
 def get_job_manager() -> JobManager:
     global _job_manager
     if _job_manager is None:
-        _job_manager = JobManager()
+        from app.config import get_settings
+        settings = get_settings()
+        _job_manager = JobManager(data_dir=settings.DATA_DIR)
     return _job_manager

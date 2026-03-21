@@ -1,4 +1,4 @@
-import type { AlignedSegment, PauseSegment, JobResponse, JobSummary, SSEStatusData, DictionaryData, DictionaryEntry, ExportRequest } from './types';
+import type { AlignedSegment, PauseSegment, JobResponse, JobSummary, SSEStatusData, DictionaryData, DictionaryEntry, ExportRequest, StorageStats, CleanupRequest, CleanupResponse } from './types';
 
 const BASE = '/api';
 
@@ -331,4 +331,30 @@ export async function importDictionary(data: DictionaryData): Promise<Dictionary
 
 export async function exportDictionary(): Promise<DictionaryData> {
   return request<DictionaryData>('/dictionary/export');
+}
+
+// ── Job management ──
+
+export async function renameJob(jobId: string, displayName: string): Promise<void> {
+  await request(`/jobs/${jobId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ display_name: displayName }),
+  });
+}
+
+export async function deleteJob(jobId: string): Promise<void> {
+  await request(`/jobs/${jobId}`, { method: 'DELETE' });
+}
+
+// ── Storage management ──
+
+export async function getStorageStats(): Promise<StorageStats> {
+  return request<StorageStats>('/storage/stats');
+}
+
+export async function cleanupStorage(req: CleanupRequest): Promise<CleanupResponse> {
+  return request<CleanupResponse>('/storage/cleanup', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
 }

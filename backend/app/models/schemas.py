@@ -127,8 +127,14 @@ class JobSummary(BaseModel):
     stage_name: str = ""
     script_name: str = ""
     audio_name: str = ""
+    display_name: str = ""
     created_at: datetime
     elapsed_seconds: float = 0.0
+
+
+class JobUpdateRequest(BaseModel):
+    """Request body for PATCH /api/jobs/{job_id}."""
+    display_name: Optional[str] = None
 
 
 class JobResponse(BaseModel):

@@ -87,14 +87,14 @@ export default function TextCorrectionPopover({
       <div className="flex justify-end gap-2">
         <button
           onClick={onClose}
-          className="rounded-lg px-3 py-1.5 text-xs text-text-secondary hover:bg-elevated transition-colors"
+          className="rounded-lg px-3 py-1.5 text-xs text-text-secondary hover:bg-elevated transition-colors transition-smooth"
         >
           取消
         </button>
         <button
           onClick={handleSave}
           disabled={!correctText.trim() || saving}
-          className="rounded-lg bg-amber px-4 py-1.5 text-xs font-medium text-deep hover:bg-amber/90 disabled:bg-elevated disabled:text-text-muted transition-colors"
+          className="rounded-lg bg-amber px-4 py-1.5 text-xs font-medium text-deep hover:bg-amber/90 disabled:bg-elevated disabled:text-text-muted transition-colors transition-smooth"
         >
           {saving ? '保存中...' : '保存到词典'}
         </button>

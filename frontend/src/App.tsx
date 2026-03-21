@@ -7,6 +7,7 @@ import ProcessingPage from './pages/ProcessingPage';
 import ReviewPage from './pages/ReviewPage';
 import ExportPage from './pages/ExportPage';
 import DictionaryPage from './pages/DictionaryPage';
+import StoragePage from './pages/StoragePage';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
               <Route path="/review/:id" element={<ReviewPage />} />
               <Route path="/export/:id" element={<ExportPage />} />
               <Route path="/dictionary" element={<DictionaryPage />} />
+              <Route path="/storage" element={<StoragePage />} />
             </Routes>
           </main>
         </div>

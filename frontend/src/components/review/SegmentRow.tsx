@@ -40,7 +40,7 @@ export default function SegmentRow({
 
   return (
     <div
-      className={`rounded-xl border transition-all duration-200 ${borderClass} animate-fade-in`}
+      className={`rounded-xl border transition-all duration-200 transition-snappy ${borderClass} animate-fade-in`}
     >
       {/* Top bar: index, play button, time range, confidence, keep checkbox */}
       <div className="flex items-center gap-3 px-4 py-3">

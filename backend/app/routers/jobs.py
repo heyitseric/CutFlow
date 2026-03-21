@@ -4,13 +4,15 @@ import logging
 import math
 import time
 
+import shutil
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
 from app.config import get_settings
 from app.jobs.manager import get_job_manager
-from app.models.schemas import JobResponse, JobStatus, JobSummary
+from app.models.schemas import JobResponse, JobStatus, JobSummary, JobUpdateRequest
 
 
 def _safe_round(value, ndigits=1):
@@ -58,11 +60,53 @@ async def list_jobs():
                 stage_name=job.stage_name,
                 script_name=job.script_filename,
                 audio_name=job.audio_filename,
+                display_name=job.display_name or job.script_filename,
                 created_at=job.created_at,
                 elapsed_seconds=round(job.elapsed_seconds, 1),
             )
         )
     return summaries
+
+
+@router.patch("/jobs/{job_id}")
+async def update_job_metadata(job_id: str, body: JobUpdateRequest):
+    """Update job metadata (e.g. rename)."""
+    manager = get_job_manager()
+    job = manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    if body.display_name is not None:
+        manager.rename_job(job_id, body.display_name)
+    return {"ok": True}
+
+
+@router.delete("/jobs/{job_id}")
+async def delete_job(job_id: str):
+    """Delete a job and all associated files."""
+    settings = get_settings()
+    manager = get_job_manager()
+    job = manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    # Prevent deletion of actively processing jobs
+    if job.state.value in ("transcribing", "matching", "aligning"):
+        raise HTTPException(
+            status_code=409,
+            detail="无法删除正在处理中的任务",
+        )
+
+    # Remove files
+    upload_dir = settings.UPLOAD_DIR / job_id
+    output_dir = settings.OUTPUT_DIR / job_id
+    if upload_dir.exists():
+        shutil.rmtree(upload_dir, ignore_errors=True)
+    if output_dir.exists():
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+    # Remove from manager (persists automatically)
+    manager.delete_job(job_id)
+    return {"ok": True}
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)

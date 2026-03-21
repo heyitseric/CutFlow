@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { AlignedSegment, JobSummary, PauseSegment, ProgressEvent } from '../api/types';
-import { listJobs, updateSegment as patchSegment } from '../api/client';
+import { listJobs, updateSegment as patchSegment, renameJob as apiRenameJob, deleteJob as apiDeleteJob } from '../api/client';
 
 // ── Per-job state ──
 
@@ -14,6 +14,7 @@ export interface SingleJobState {
   stageProgress: ProgressEvent | null;
   scriptName: string;
   audioName: string;
+  displayName: string;
   createdAt: string;
 
   // Time tracking — persisted from SSE so they survive job switching
@@ -25,7 +26,7 @@ export interface SingleJobState {
   editedPauses: Map<string, Partial<PauseSegment>>; // key: "segIdx-pauseIdx"
 }
 
-function createEmptyJob(jobId: string, scriptName = '', audioName = '', createdAt = ''): SingleJobState {
+function createEmptyJob(jobId: string, scriptName = '', audioName = '', createdAt = '', displayName = ''): SingleJobState {
   return {
     jobId,
     status: 'processing',
@@ -36,6 +37,7 @@ function createEmptyJob(jobId: string, scriptName = '', audioName = '', createdA
     stageProgress: null,
     scriptName,
     audioName,
+    displayName: displayName || scriptName,
     createdAt: createdAt || new Date().toISOString(),
     elapsedSeconds: 0,
     estimatedRemainingSeconds: null,
@@ -85,6 +87,12 @@ interface JobStoreState {
 
   /** Fetch job list from backend and populate store */
   fetchJobList: () => Promise<void>;
+
+  /** Rename a job's display name */
+  renameJob: (jobId: string, newName: string) => Promise<void>;
+
+  /** Delete a job */
+  deleteJobAction: (jobId: string) => Promise<void>;
 
   // segment editing (scoped to active job)
   updateSegment: (index: number, updates: Partial<AlignedSegment>) => void;
@@ -176,7 +184,7 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
         for (const s of summaries) {
           if (!next[s.job_id]) {
             next[s.job_id] = {
-              ...createEmptyJob(s.job_id, s.script_name, s.audio_name, s.created_at),
+              ...createEmptyJob(s.job_id, s.script_name, s.audio_name, s.created_at, s.display_name),
               status: s.status,
               progress: s.progress / 100, // backend sends 0-100, frontend uses 0-1
             };
@@ -188,6 +196,7 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
               progress: s.progress / 100,
               scriptName: s.script_name || next[s.job_id].scriptName,
               audioName: s.audio_name || next[s.job_id].audioName,
+              displayName: s.display_name || next[s.job_id].displayName,
               createdAt: s.created_at || next[s.job_id].createdAt,
             };
           }
@@ -196,6 +205,38 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
       });
     } catch {
       // Silently ignore — sidebar will just be empty
+    }
+  },
+
+  renameJob: async (jobId, newName) => {
+    try {
+      await apiRenameJob(jobId, newName);
+      set((state) => {
+        const job = state.jobs[jobId];
+        if (!job) return {};
+        return {
+          jobs: { ...state.jobs, [jobId]: { ...job, displayName: newName } },
+        };
+      });
+    } catch (err) {
+      console.error('[jobStore] Failed to rename job:', err);
+    }
+  },
+
+  deleteJobAction: async (jobId) => {
+    try {
+      await apiDeleteJob(jobId);
+      set((state) => {
+        const next = { ...state.jobs };
+        delete next[jobId];
+        return {
+          jobs: next,
+          activeJobId: state.activeJobId === jobId ? null : state.activeJobId,
+        };
+      });
+    } catch (err) {
+      console.error('[jobStore] Failed to delete job:', err);
+      throw err;
     }
   },
 

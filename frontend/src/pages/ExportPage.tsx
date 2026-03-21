@@ -105,7 +105,7 @@ export default function ExportPage() {
         <div className="mb-10 text-center animate-fade-in-up">
           <button
             onClick={() => navigate(`/review/${id}`)}
-            className="mb-4 text-xs text-text-muted hover:text-text-secondary transition-colors"
+            className="mb-4 text-xs text-text-muted hover:text-text-secondary transition-colors transition-smooth"
           >
             ← 返回审核
           </button>
@@ -122,7 +122,7 @@ export default function ExportPage() {
                 <button
                   key={f}
                   onClick={() => toggleFormat(f)}
-                  className={`flex flex-col items-center gap-1 rounded-xl border-2 p-4 text-center transition-all duration-300 ${
+                  className={`flex flex-col items-center gap-1 rounded-xl border-2 p-4 text-center transition-all duration-300 transition-cinematic ${
                     formats[f]
                       ? 'border-amber/40 bg-amber-glow'
                       : 'border-border hover:border-border hover:bg-elevated'
@@ -145,7 +145,7 @@ export default function ExportPage() {
                 <button
                   key={fr}
                   onClick={() => setFrameRate(fr)}
-                  className={`flex-1 rounded-xl border-2 py-2.5 font-mono text-sm transition-all duration-300 ${
+                  className={`flex-1 rounded-xl border-2 py-2.5 font-mono text-sm transition-all duration-300 transition-cinematic ${
                     frameRate === fr
                       ? 'border-amber/40 bg-amber-glow text-amber font-medium'
                       : 'border-border text-text-muted hover:border-border hover:bg-elevated'
@@ -188,7 +188,7 @@ export default function ExportPage() {
                 <button
                   key={opt.value}
                   onClick={() => setSubtitleSource(opt.value)}
-                  className={`flex flex-col items-center gap-1 rounded-xl border-2 p-3 text-center transition-all duration-300 ${
+                  className={`flex flex-col items-center gap-1 rounded-xl border-2 p-3 text-center transition-all duration-300 transition-cinematic ${
                     subtitleSource === opt.value
                       ? 'border-teal/40 bg-teal-glow'
                       : 'border-border hover:border-border hover:bg-elevated'
@@ -224,7 +224,7 @@ export default function ExportPage() {
           <button
             onClick={handleExport}
             disabled={exporting}
-            className={`w-full rounded-2xl py-3.5 font-display text-base font-semibold tracking-wide transition-all duration-300 ${
+            className={`w-full rounded-2xl py-3.5 font-display text-base font-semibold tracking-wide transition-all duration-300 transition-cinematic transition-spring ${
               exporting
                 ? 'bg-elevated text-text-muted cursor-not-allowed'
                 : 'bg-amber text-deep hover:bg-amber/90 hover:shadow-lg hover:shadow-amber/20 active:scale-[0.98]'
@@ -253,7 +253,7 @@ export default function ExportPage() {
                     key={format}
                     onClick={() => handleDownload(format)}
                     disabled={downloading === format}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-text-primary hover:bg-elevated transition-colors disabled:opacity-50"
+                    className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-text-primary hover:bg-elevated transition-colors transition-smooth disabled:opacity-50"
                   >
                     <svg className="h-4 w-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

@@ -21,7 +21,7 @@ export default function AudioPlayer({
     <div className="flex items-center gap-2.5">
       <button
         onClick={onToggle}
-        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200 ${
+        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200 transition-snappy ${
           playing
             ? 'bg-amber/15 text-amber shadow-sm shadow-amber/10'
             : 'bg-elevated text-text-muted hover:bg-amber/10 hover:text-amber'
@@ -40,7 +40,7 @@ export default function AudioPlayer({
       </button>
       <div className="h-1 w-16 overflow-hidden rounded-full bg-elevated">
         <div
-          className="h-full rounded-full bg-amber transition-all duration-100"
+          className="h-full rounded-full bg-amber transition-all duration-100 transition-smooth"
           style={{ width: `${pct}%` }}
         />
       </div>

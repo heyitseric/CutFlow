@@ -82,8 +82,42 @@ export interface JobSummary {
   stage_name: string;
   script_name: string;
   audio_name: string;
+  display_name: string;
   created_at: string;
   elapsed_seconds: number;
+}
+
+// ── Storage management ──
+
+export interface StorageJobInfo {
+  job_id: string;
+  display_name: string;
+  status: string;
+  created_at: string;
+  upload_bytes: number;
+  output_bytes: number;
+  total_bytes: number;
+  total_display: string;
+  files: Record<string, number>;
+}
+
+export interface StorageStats {
+  total_bytes: number;
+  total_display: string;
+  jobs: StorageJobInfo[];
+}
+
+export interface CleanupRequest {
+  job_ids: string[];
+  delete_uploads: boolean;
+  delete_outputs: boolean;
+  delete_job: boolean;
+}
+
+export interface CleanupResponse {
+  deleted_count: number;
+  freed_bytes: number;
+  freed_display: string;
 }
 
 /** Shape of data sent by the backend SSE stream */

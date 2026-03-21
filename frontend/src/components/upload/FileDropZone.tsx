@@ -45,7 +45,7 @@ export default function FileDropZone({ accept, label, icon, file, onFile }: File
       onClick={() => inputRef.current?.click()}
       className={`
         group relative flex cursor-pointer flex-col items-center justify-center
-        rounded-2xl border-2 border-dashed p-10 transition-all duration-300
+        rounded-2xl border-2 border-dashed p-10 transition-all duration-300 transition-cinematic
         ${dragging
           ? 'border-amber bg-amber-glow scale-[1.02]'
           : file
@@ -76,13 +76,13 @@ export default function FileDropZone({ accept, label, icon, file, onFile }: File
             <p className="font-display text-sm font-medium text-text-primary">{file.name}</p>
             <p className="mt-1 font-mono text-xs text-text-muted">{formatSize(file.size)}</p>
           </div>
-          <span className="rounded-full bg-elevated px-3 py-1 text-xs text-text-secondary transition-colors group-hover:bg-hover group-hover:text-amber">
+          <span className="rounded-full bg-elevated px-3 py-1 text-xs text-text-secondary transition-colors transition-smooth group-hover:bg-hover group-hover:text-amber">
             点击更换文件
           </span>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-elevated text-text-muted transition-colors group-hover:bg-amber/10 group-hover:text-amber">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-elevated text-text-muted transition-colors transition-smooth group-hover:bg-amber/10 group-hover:text-amber">
             {icon}
           </div>
           <div>
@@ -97,10 +97,10 @@ export default function FileDropZone({ accept, label, icon, file, onFile }: File
       {/* Decorative corner marks */}
       {!file && (
         <>
-          <div className="absolute left-3 top-3 h-4 w-4 border-l-2 border-t-2 border-border/50 rounded-tl transition-colors group-hover:border-amber/30" />
-          <div className="absolute right-3 top-3 h-4 w-4 border-r-2 border-t-2 border-border/50 rounded-tr transition-colors group-hover:border-amber/30" />
-          <div className="absolute bottom-3 left-3 h-4 w-4 border-b-2 border-l-2 border-border/50 rounded-bl transition-colors group-hover:border-amber/30" />
-          <div className="absolute bottom-3 right-3 h-4 w-4 border-b-2 border-r-2 border-border/50 rounded-br transition-colors group-hover:border-amber/30" />
+          <div className="absolute left-3 top-3 h-4 w-4 border-l-2 border-t-2 border-border/50 rounded-tl transition-colors transition-smooth group-hover:border-amber/30" />
+          <div className="absolute right-3 top-3 h-4 w-4 border-r-2 border-t-2 border-border/50 rounded-tr transition-colors transition-smooth group-hover:border-amber/30" />
+          <div className="absolute bottom-3 left-3 h-4 w-4 border-b-2 border-l-2 border-border/50 rounded-bl transition-colors transition-smooth group-hover:border-amber/30" />
+          <div className="absolute bottom-3 right-3 h-4 w-4 border-b-2 border-r-2 border-border/50 rounded-br transition-colors transition-smooth group-hover:border-amber/30" />
         </>
       )}
     </div>

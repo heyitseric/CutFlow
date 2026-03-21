@@ -37,7 +37,7 @@ export default function Stepper({ currentStep, jobId }: StepperProps) {
             {i > 0 && (
               <div className="mx-1.5 flex items-center">
                 <div
-                  className={`h-px w-12 transition-colors duration-500 ${
+                  className={`h-px w-12 transition-colors duration-500 transition-smooth ${
                     isCompleted ? 'bg-amber' : 'bg-border'
                   }`}
                 />
@@ -46,7 +46,7 @@ export default function Stepper({ currentStep, jobId }: StepperProps) {
             <button
               onClick={() => handleClick(i)}
               disabled={!isClickable}
-              className={`group flex items-center gap-2.5 rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
+              className={`group flex items-center gap-2.5 rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 transition-cinematic ${
                 isActive
                   ? 'bg-amber/15 text-amber ring-1 ring-amber/30'
                   : isCompleted
@@ -55,7 +55,7 @@ export default function Stepper({ currentStep, jobId }: StepperProps) {
               }`}
             >
               <span
-                className={`flex h-6 w-6 items-center justify-center rounded-full font-mono text-xs transition-all duration-300 ${
+                className={`flex h-6 w-6 items-center justify-center rounded-full font-mono text-xs transition-all duration-300 transition-cinematic ${
                   isActive
                     ? 'bg-amber text-deep font-semibold'
                     : isCompleted

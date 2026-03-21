@@ -48,6 +48,15 @@
   --font-display: "Bricolage Grotesque", "Noto Sans SC", system-ui, sans-serif;
   --font-body: "Noto Sans SC", "Bricolage Grotesque", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* ── Motion Curves (non-linear easing) ── */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-smooth-in: cubic-bezier(0.64, 0, 0.78, 0);
+  --ease-smooth-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-snappy: cubic-bezier(0.2, 0, 0, 1);
+  --ease-cinematic: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 /* ── Base Styles ── */
@@ -88,7 +97,7 @@ body {
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -119,11 +128,33 @@ body {
 @keyframes slideDown {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(-12px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideRight {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
@@ -132,24 +163,50 @@ body {
   100% { background-position: 40px 0; }
 }
 
+/* Non-linear animation classes */
 .animate-fade-in-up {
-  animation: fadeInUp 0.5s ease-out both;
+  animation: fadeInUp 0.5s var(--ease-smooth-out) both;
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.4s ease-out both;
+  animation: fadeIn 0.4s var(--ease-smooth-out) both;
 }
 
 .animate-slide-down {
-  animation: slideDown 0.3s ease-out both;
+  animation: slideDown 0.3s var(--ease-spring) both;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s var(--ease-spring) both;
+}
+
+.animate-slide-right {
+  animation: slideRight 0.25s var(--ease-smooth-out) both;
 }
 
 .animate-pulse-glow {
-  animation: pulseGlow 2s ease-in-out infinite;
+  animation: pulseGlow 2s var(--ease-cinematic) infinite;
 }
 
 .animate-gentle-pulse {
-  animation: gentlePulse 2s ease-in-out infinite;
+  animation: gentlePulse 2s var(--ease-smooth-in-out) infinite;
+}
+
+/* Non-linear transition timing utilities */
+.transition-smooth {
+  transition-timing-function: var(--ease-smooth-out);
+}
+
+.transition-spring {
+  transition-timing-function: var(--ease-spring);
+}
+
+.transition-snappy {
+  transition-timing-function: var(--ease-snappy);
+}
+
+.transition-cinematic {
+  transition-timing-function: var(--ease-cinematic);
 }
 
 /* Stagger delays */
@@ -185,7 +242,7 @@ input[type="range"]::-webkit-slider-thumb {
   background: var(--color-amber);
   margin-top: -6px;
   box-shadow: 0 0 8px var(--color-amber-glow);
-  transition: transform 0.15s ease;
+  transition: transform 0.15s var(--ease-spring);
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {

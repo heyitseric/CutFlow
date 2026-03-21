@@ -34,7 +34,7 @@ if _env_path.exists():
     load_dotenv(_env_path)
 
 from app.config import get_settings
-from app.routers import alignment, dictionary, export, jobs, system, upload
+from app.routers import alignment, dictionary, export, jobs, storage, system, upload
 
 # Configure logging
 logging.basicConfig(
@@ -69,6 +69,7 @@ app.include_router(alignment.router)
 app.include_router(export.router)
 app.include_router(dictionary.router)
 app.include_router(system.router)
+app.include_router(storage.router)
 
 # Mount static files for downloads
 settings = get_settings()
@@ -80,8 +81,12 @@ async def startup_event():
     # Ensure matplotlib cache dir exists so it never triggers a slow rebuild
     Path(os.environ.get("MPLCONFIGDIR", "")).mkdir(parents=True, exist_ok=True)
 
+    # Trigger job manager init (restores persisted jobs)
+    from app.jobs.manager import get_job_manager
+    mgr = get_job_manager()
     logger.info("A-Roll Rough Cut Tool backend starting up")
     logger.info(f"Data directory: {settings.DATA_DIR}")
+    logger.info(f"Restored {len(mgr.list_jobs())} jobs from disk")
     logger.info(f"Cloud provider: {settings.CLOUD_PROVIDER}")
     if settings.ARK_API_KEY:
         logger.info("ARK API key configured")

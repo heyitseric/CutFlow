@@ -3,13 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 export default function Header() {
   const location = useLocation();
   const isDictionary = location.pathname === '/dictionary';
+  const isStorage = location.pathname === '/storage';
 
   return (
     <header className="glass-panel sticky top-0 z-50 border-b border-border-subtle">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
         <Link
           to="/"
-          className="group flex items-center gap-3 transition-colors"
+          className="group flex items-center gap-3 transition-colors transition-smooth"
         >
           {/* Film reel icon */}
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber/10">
@@ -23,7 +24,7 @@ export default function Header() {
             </svg>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="font-display text-lg font-semibold tracking-tight text-text-primary group-hover:text-amber transition-colors">
+            <span className="font-display text-lg font-semibold tracking-tight text-text-primary group-hover:text-amber transition-colors transition-smooth">
               A-Roll
             </span>
             <span className="text-sm text-text-muted">粗剪工具</span>
@@ -32,8 +33,21 @@ export default function Header() {
 
         <nav className="flex items-center gap-2">
           <Link
+            to="/storage"
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all transition-smooth ${
+              isStorage
+                ? 'bg-amber/10 text-amber'
+                : 'text-text-secondary hover:bg-elevated hover:text-text-primary'
+            }`}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+            存储管理
+          </Link>
+          <Link
             to="/dictionary"
-            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all transition-smooth ${
               isDictionary
                 ? 'bg-amber/10 text-amber'
                 : 'text-text-secondary hover:bg-elevated hover:text-text-primary'

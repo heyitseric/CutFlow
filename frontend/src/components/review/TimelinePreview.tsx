@@ -59,7 +59,7 @@ export default function TimelinePreview({ segments, audioDuration }: TimelinePre
           return (
             <div
               key={i}
-              className={`absolute top-1 bottom-1 rounded-sm transition-all duration-200 ${
+              className={`absolute top-1 bottom-1 rounded-sm transition-all duration-200 transition-snappy ${
                 isHovered ? 'z-10 brightness-125 scale-y-110' : ''
               } ${isRejected ? 'opacity-30' : ''}`}
               style={{
