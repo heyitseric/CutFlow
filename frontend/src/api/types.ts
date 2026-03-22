@@ -68,7 +68,8 @@ export interface ProgressEvent {
 }
 
 export interface ExportRequest {
-  format: 'edl' | 'fcpxml' | 'srt' | 'all';
+  format?: 'edl' | 'fcpxml' | 'srt' | 'all';
+  formats?: Array<'edl' | 'fcpxml' | 'srt'>;
   frameRate: number;
   bufferDuration: number;
   subtitleSource: 'script' | 'transcript' | 'llm_corrected';
@@ -118,6 +119,42 @@ export interface CleanupResponse {
   deleted_count: number;
   freed_bytes: number;
   freed_display: string;
+}
+
+// ── Settings / API key management ──
+
+export interface ApiKeyStatus {
+  key_name: string;
+  display_name: string;
+  group: 'llm' | 'transcription';
+  is_set: boolean;
+  masked_value: string;
+  required: boolean;
+  description: string;
+}
+
+export interface ApiKeysResponse {
+  keys: ApiKeyStatus[];
+  llm_base_url: string;
+  llm_model: string;
+}
+
+export interface ApiKeyUpdate {
+  key_name: string;
+  value: string;
+}
+
+export interface TestResult {
+  ok: boolean;
+  message: string;
+}
+
+export interface HealthStatus {
+  status: string;
+  version: string;
+  cloud_provider: string;
+  has_api_key: boolean;
+  has_caption_keys: boolean;
 }
 
 /** Shape of data sent by the backend SSE stream */

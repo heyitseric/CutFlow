@@ -1,4 +1,4 @@
-import type { AlignedSegment, PauseSegment, JobResponse, JobSummary, SSEStatusData, DictionaryData, DictionaryEntry, ExportRequest, StorageStats, CleanupRequest, CleanupResponse } from './types';
+import type { AlignedSegment, PauseSegment, JobResponse, JobSummary, SSEStatusData, DictionaryData, DictionaryEntry, ExportRequest, StorageStats, CleanupRequest, CleanupResponse, ApiKeysResponse, ApiKeyUpdate, TestResult, HealthStatus } from './types';
 
 const BASE = '/api';
 
@@ -356,5 +356,43 @@ export async function cleanupStorage(req: CleanupRequest): Promise<CleanupRespon
   return request<CleanupResponse>('/storage/cleanup', {
     method: 'POST',
     body: JSON.stringify(req),
+  });
+}
+
+// ── Settings / API key management ──
+
+export async function getHealthStatus(): Promise<HealthStatus> {
+  return request<HealthStatus>('/health');
+}
+
+export async function getApiKeys(): Promise<ApiKeysResponse> {
+  return request<ApiKeysResponse>('/settings/keys');
+}
+
+export async function updateApiKeys(keys: ApiKeyUpdate[]): Promise<ApiKeysResponse> {
+  return request<ApiKeysResponse>('/settings/keys', {
+    method: 'PUT',
+    body: JSON.stringify({ keys }),
+  });
+}
+
+export async function testLlmConnection(params: {
+  api_key: string;
+  base_url: string;
+  model: string;
+}): Promise<TestResult> {
+  return request<TestResult>('/settings/test-llm', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function testTranscriptionConnection(params: {
+  appid: string;
+  token: string;
+}): Promise<TestResult> {
+  return request<TestResult>('/settings/test-transcription', {
+    method: 'POST',
+    body: JSON.stringify(params),
   });
 }

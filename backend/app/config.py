@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     CLOUD_PROVIDER: str = "volcengine"
     CLOUD_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/coding/v3"
     CLOUD_MODEL: str = "doubao-seed-2.0-lite"
+    SRT_SEGMENTATION_MODEL: str = "doubao-seed-2.0-lite"
+    SRT_SEGMENTATION_BATCH_SIZE: int = 20
 
     # Volcengine Caption API (cloud transcription)
     VOLCENGINE_CAPTION_APPID: str = ""
@@ -68,3 +70,10 @@ def get_settings() -> Settings:
         _settings.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         _settings.DICTIONARY_DIR.mkdir(parents=True, exist_ok=True)
     return _settings
+
+
+def reload_settings() -> Settings:
+    """Force re-creation of the settings singleton (after .env changes)."""
+    global _settings
+    _settings = None
+    return get_settings()

@@ -181,6 +181,7 @@ class ExportRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
     format: ExportFormat = ExportFormat.ALL
+    formats: list[ExportFormat] = Field(default_factory=list)
     frame_rate: float = Field(default=29.97, alias="frameRate")
     buffer_duration: float = Field(default=0.15, alias="bufferDuration")
     subtitle_source: str = Field(default="script", alias="subtitleSource")

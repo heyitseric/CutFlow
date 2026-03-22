@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import PageContainer from '../components/layout/PageContainer';
 import Stepper from '../components/layout/Stepper';
 import FileDropZone from '../components/upload/FileDropZone';
-import { uploadJob } from '../api/client';
+import { uploadJob, getHealthStatus } from '../api/client';
 import { useJobStore } from '../stores/jobStore';
 
 export default function UploadPage() {
@@ -16,6 +16,17 @@ export default function UploadPage() {
   const [scriptPreview, setScriptPreview] = useState<string>('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConfigBanner, setShowConfigBanner] = useState(false);
+
+  useEffect(() => {
+    getHealthStatus()
+      .then((health) => {
+        if (!health.has_api_key && !health.has_caption_keys) {
+          setShowConfigBanner(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   function handleScriptFile(file: File) {
     setScriptFile(file);
@@ -46,6 +57,31 @@ export default function UploadPage() {
     <>
       <Stepper currentStep={0} />
       <PageContainer>
+        {/* Cloud config banner */}
+        {showConfigBanner && (
+          <div className="mb-6 animate-fade-in-up rounded-xl border border-amber/15 bg-amber/[0.04] px-5 py-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber/10">
+                <svg className="h-3.5 w-3.5 text-amber" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17l-5.1-5.1m0 0L12 4.37m-5.68 5.7h11.8M4.26 19.72A9.965 9.965 0 0112 2c5.523 0 10 4.477 10 10a9.965 9.965 0 01-7.74 9.72" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber/90">尚未配置云端服务</p>
+                <p className="mt-1 text-xs text-text-muted leading-relaxed">
+                  前往「服务配置」填写 API 密钥以启用云端匹配和转录功能，获得更快速度和更高准确率。当前将使用本地模型处理。
+                </p>
+              </div>
+              <Link
+                to="/settings"
+                className="shrink-0 rounded-lg bg-amber/10 px-3.5 py-2 text-xs font-medium text-amber hover:bg-amber/20 transition-colors"
+              >
+                前往配置 &rarr;
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Hero heading */}
         <div className="mb-10 text-center animate-fade-in-up">
           <h1 className="font-display text-3xl font-bold tracking-tight text-text-primary">

@@ -34,7 +34,7 @@ if _env_path.exists():
     load_dotenv(_env_path)
 
 from app.config import get_settings
-from app.routers import alignment, dictionary, export, jobs, storage, system, upload
+from app.routers import alignment, dictionary, export, jobs, settings, storage, system, upload
 
 # Configure logging
 logging.basicConfig(
@@ -70,6 +70,7 @@ app.include_router(export.router)
 app.include_router(dictionary.router)
 app.include_router(system.router)
 app.include_router(storage.router)
+app.include_router(settings.router)
 
 # Mount static files for downloads
 settings = get_settings()
@@ -101,4 +102,5 @@ async def health_check():
         "version": "0.1.0",
         "cloud_provider": settings.CLOUD_PROVIDER,
         "has_api_key": bool(settings.ARK_API_KEY),
+        "has_caption_keys": bool(settings.VOLCENGINE_CAPTION_APPID and settings.VOLCENGINE_CAPTION_TOKEN),
     }

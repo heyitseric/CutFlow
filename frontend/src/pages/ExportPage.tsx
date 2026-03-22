@@ -63,10 +63,8 @@ export default function ExportPage() {
     const finalVideoFilename = defaultVideoFilename || 'video.mp4';
 
     try {
-      // Always generate all formats — they're small text files.
-      // The user only downloads the ones they selected.
       await exportJob(id, {
-        format: 'all',
+        formats: selectedFormats as Array<'edl' | 'fcpxml' | 'srt'>,
         frameRate,
         bufferDuration: buffer,
         subtitleSource,

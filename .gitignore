@@ -36,5 +36,10 @@ backend/data/outputs/
 .coverage
 htmlcov/
 
+# Runtime data
+backend/data/jobs.json
+backend/data/.mpl_cache/
+
 # Claude
-.claude/plans/
+.claude/
+agent-handoff-notes.md
