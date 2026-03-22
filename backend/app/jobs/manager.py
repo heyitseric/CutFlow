@@ -55,6 +55,9 @@ class JobData:
         self.alignment: Optional[list[AlignedSegment]] = None
         self.script_text: str = ""
 
+        # Pre-computed SRT segmentation cache (text -> segmented list)
+        self.srt_segment_cache: Optional[dict[str, list[str]]] = None
+
         # Export results
         self.export_files: list[str] = []
 

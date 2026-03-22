@@ -13,6 +13,7 @@ from app.models.schemas import (
     JobState,
     SegmentStatus,
 )
+from app.providers.cloud.volcengine_srt import SRTSegmentationError
 from app.services.edl_generator import generate_edl
 from app.services.export_clips import build_export_clips
 from app.services.fcpxml_generator import generate_fcpxml
@@ -29,6 +30,14 @@ def _compute_export_audio_duration(job) -> float:
         default=0.0,
     )
     return max(transcription_duration, aligned_end)
+
+
+def _resolve_requested_formats(request: ExportRequest) -> set[ExportFormat]:
+    if request.formats:
+        return set(request.formats)
+    if request.format == ExportFormat.ALL:
+        return {ExportFormat.EDL, ExportFormat.FCPXML, ExportFormat.SRT}
+    return {request.format}
 
 
 @router.post("/jobs/{job_id}/export", response_model=ExportResponse)
@@ -51,47 +60,55 @@ async def export_job(job_id: str, request: ExportRequest):
     files: list[str] = []
     audio_duration = _compute_export_audio_duration(job)
     export_clips = build_export_clips(job.alignment)
+    requested_formats = _resolve_requested_formats(request)
 
-    # Always generate all formats — they're small text files
     # EDL
-    edl_content = generate_edl(
-        segments=export_clips,
-        title=f"Job_{job_id}",
-        frame_rate=request.frame_rate,
-        audio_filename=job.audio_filename,
-        video_filename=request.video_filename,
-        buffer_duration=request.buffer_duration,
-        audio_duration=audio_duration,
-    )
-    edl_path = output_dir / f"{job_id}.edl"
-    edl_path.write_text(edl_content, encoding="utf-8")
-    files.append(f"/api/downloads/{job_id}/{job_id}.edl")
-    logger.info(f"Generated EDL: {edl_path}")
+    if ExportFormat.EDL in requested_formats:
+        edl_content = generate_edl(
+            segments=export_clips,
+            title=f"Job_{job_id}",
+            frame_rate=request.frame_rate,
+            audio_filename=job.audio_filename,
+            video_filename=request.video_filename,
+            buffer_duration=request.buffer_duration,
+            audio_duration=audio_duration,
+        )
+        edl_path = output_dir / f"{job_id}.edl"
+        edl_path.write_text(edl_content, encoding="utf-8")
+        files.append(f"/api/downloads/{job_id}/{job_id}.edl")
+        logger.info(f"Generated EDL: {edl_path}")
 
     # FCPXML
-    fcpxml_content = generate_fcpxml(
-        segments=export_clips,
-        title=f"Job_{job_id}",
-        frame_rate=request.frame_rate,
-        audio_filename=job.audio_filename,
-        audio_duration=audio_duration,
-        video_filename=request.video_filename,
-        buffer_duration=request.buffer_duration,
-    )
-    fcpxml_path = output_dir / f"{job_id}.fcpxml"
-    fcpxml_path.write_text(fcpxml_content, encoding="utf-8")
-    files.append(f"/api/downloads/{job_id}/{job_id}.fcpxml")
-    logger.info(f"Generated FCPXML: {fcpxml_path}")
+    if ExportFormat.FCPXML in requested_formats:
+        fcpxml_content = generate_fcpxml(
+            segments=export_clips,
+            title=f"Job_{job_id}",
+            frame_rate=request.frame_rate,
+            audio_filename=job.audio_filename,
+            audio_duration=audio_duration,
+            video_filename=request.video_filename,
+            buffer_duration=request.buffer_duration,
+        )
+        fcpxml_path = output_dir / f"{job_id}.fcpxml"
+        fcpxml_path.write_text(fcpxml_content, encoding="utf-8")
+        files.append(f"/api/downloads/{job_id}/{job_id}.fcpxml")
+        logger.info(f"Generated FCPXML: {fcpxml_path}")
 
     # SRT
-    srt_content = generate_srt(
-        segments=export_clips,
-        text_source=request.subtitle_source if request.subtitle_source != "llm_corrected" else "script",
-    )
-    srt_path = output_dir / f"{job_id}.srt"
-    srt_path.write_text(srt_content, encoding="utf-8")
-    files.append(f"/api/downloads/{job_id}/{job_id}.srt")
-    logger.info(f"Generated SRT: {srt_path}")
+    if ExportFormat.SRT in requested_formats:
+        try:
+            srt_content = await generate_srt(
+                segments=export_clips,
+                text_source=request.subtitle_source if request.subtitle_source != "llm_corrected" else "script",
+                segment_cache=job.srt_segment_cache,
+            )
+        except SRTSegmentationError as exc:
+            logger.warning("Failed to generate SRT for job %s: %s", job_id, exc)
+            raise HTTPException(status_code=502, detail=f"SRT 导出失败：{exc}") from exc
+        srt_path = output_dir / f"{job_id}.srt"
+        srt_path.write_text(srt_content, encoding="utf-8")
+        files.append(f"/api/downloads/{job_id}/{job_id}.srt")
+        logger.info(f"Generated SRT: {srt_path}")
 
     # Update job state
     manager.update_job(job_id, state=JobState.DONE, message="Export complete")

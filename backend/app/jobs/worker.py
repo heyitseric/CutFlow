@@ -30,12 +30,12 @@ logger = logging.getLogger(__name__)
 STAGES = [
     (1, "解析脚本", 2),       # Parsing script
     (2, "加载模型", 8),       # Loading models
-    (3, "语音转录", 55),      # Transcribing audio
+    (3, "语音转录", 50),      # Transcribing audio
     (4, "文本匹配", 20),      # Matching text
     (5, "停顿检测", 5),       # Detecting pauses
     (6, "对齐校准", 3),       # Alignment
     (7, "片段优化", 4),       # Clip optimization
-    (8, "生成结果", 3),       # Generating results
+    (8, "生成结果", 8),       # Generating results (includes SRT pre-computation)
 ]
 
 # Pre-compute cumulative offsets so we can quickly map stage-local progress
@@ -382,7 +382,7 @@ async def run_pipeline(job: JobData) -> None:
 
         # ---- Stage 8: Generate results / finalize clips (3%) ----
         p.update(8, "生成结果", 0.0, "正在整理最终片段…",
-                 sub_tasks={"apply_buffer": "pending", "gen_results": "pending", "preview": "pending"})
+                 sub_tasks={"apply_buffer": "pending", "gen_results": "pending", "srt_segmentation": "pending", "preview": "pending"})
 
         p.start_subtask("apply_buffer")
         if clip_optimization_applied:
@@ -394,7 +394,7 @@ async def run_pipeline(job: JobData) -> None:
         p.complete_subtask("apply_buffer")
 
         p.start_subtask("gen_results")
-        p.update(8, "生成结果", 0.5, "正在生成匹配结果…")
+        p.update(8, "生成结果", 0.3, "正在生成匹配结果…")
 
         matched_count = sum(
             1 for s in alignment
@@ -405,8 +405,19 @@ async def run_pipeline(job: JobData) -> None:
         )
         p.complete_subtask("gen_results")
 
+        p.start_subtask("srt_segmentation")
+        p.update(8, "生成结果", 0.4, "正在预生成字幕分段…")
+        try:
+            from app.services.srt_generator import precompute_srt_segments
+            srt_cache = await precompute_srt_segments(alignment)
+            job.srt_segment_cache = srt_cache
+        except Exception as exc:
+            logger.warning("SRT pre-computation failed (will retry at export): %s", exc)
+            job.srt_segment_cache = None
+        p.complete_subtask("srt_segmentation")
+
         p.start_subtask("preview")
-        p.update(8, "生成结果", 0.8, "正在生成预览数据…")
+        p.update(8, "生成结果", 0.9, "正在生成预览数据…")
         p.complete_subtask("preview")
 
         p.update(
