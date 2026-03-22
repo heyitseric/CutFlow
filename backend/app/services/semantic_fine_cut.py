@@ -36,6 +36,27 @@ def _clean_text(text: str) -> str:
     return _CLEAN_RE.sub("", text)
 
 
+def _edge_similarity(
+    script_text: str,
+    candidate_text: str,
+    *,
+    edge: str,
+    max_chars: int = 8,
+) -> float:
+    clean_script = _clean_text(script_text)
+    clean_candidate = _clean_text(candidate_text)
+    if not clean_script or not clean_candidate:
+        return 0.0
+
+    edge_len = min(max_chars, len(clean_script), len(clean_candidate))
+    if edge_len <= 0:
+        return 0.0
+
+    if edge == "prefix":
+        return float(fuzz.ratio(clean_script[:edge_len], clean_candidate[:edge_len]))
+    return float(fuzz.ratio(clean_script[-edge_len:], clean_candidate[-edge_len:]))
+
+
 def _flatten_words(transcription: TranscriptionResult) -> list[dict]:
     words: list[dict] = []
     for seg in transcription.segments:
@@ -212,10 +233,73 @@ def _apply_decisions(
     decisions: list[dict],
     all_words: list[dict],
 ) -> list[AlignedSegment]:
+    def _restore_edge_chunks_if_needed(
+        kept_chunks: list[dict],
+        *,
+        edge: str,
+    ) -> list[dict]:
+        if not kept_chunks:
+            return kept_chunks
+
+        current = list(kept_chunks)
+        clean_script = _clean_text(seg.script_text)
+        if not clean_script:
+            return current
+
+        while True:
+            if edge == "prefix":
+                boundary_idx = current[0]["idx"]
+                if boundary_idx == 0:
+                    return current
+                candidate_chunk = chunks[boundary_idx - 1]
+                current_text = "".join(chunk["text"] for chunk in current)
+                edge_score = _edge_similarity(
+                    seg.script_text,
+                    current_text,
+                    edge="prefix",
+                )
+                chunk_overlap = float(
+                    fuzz.partial_ratio(
+                        clean_script[:12],
+                        _clean_text(candidate_chunk["text"]),
+                    )
+                )
+                if edge_score >= 70 or chunk_overlap < 45:
+                    return current
+                current.insert(0, candidate_chunk)
+            else:
+                boundary_idx = current[-1]["idx"]
+                if boundary_idx >= len(chunks) - 1:
+                    return current
+                candidate_chunk = chunks[boundary_idx + 1]
+                current_text = "".join(chunk["text"] for chunk in current)
+                edge_score = _edge_similarity(
+                    seg.script_text,
+                    current_text,
+                    edge="suffix",
+                )
+                chunk_overlap = float(
+                    fuzz.partial_ratio(
+                        clean_script[-12:],
+                        _clean_text(candidate_chunk["text"]),
+                    )
+                )
+                if edge_score >= 70 or chunk_overlap < 45:
+                    return current
+                current.append(candidate_chunk)
+
+        return current
+
     decision_map = {item["idx"]: item["action"] for item in decisions}
     kept = [chunk for chunk in chunks if decision_map.get(chunk["idx"], "KEEP") == "KEEP"]
 
     if not kept or len(kept) == len(chunks):
+        return [copy.deepcopy(seg)]
+
+    kept = _restore_edge_chunks_if_needed(kept, edge="prefix")
+    kept = _restore_edge_chunks_if_needed(kept, edge="suffix")
+
+    if len(kept) == len(chunks):
         return [copy.deepcopy(seg)]
 
     clean_script = _clean_text(seg.script_text)

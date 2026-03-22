@@ -25,6 +25,8 @@ def get_transcriber(provider: str = "") -> Transcriber:
             return VolcengineCaptionTranscriber(
                 appid=settings.VOLCENGINE_CAPTION_APPID,
                 token=settings.VOLCENGINE_CAPTION_TOKEN,
+                boosting_table_id=settings.VOLCENGINE_CAPTION_BOOSTING_TABLE_ID,
+                correct_table_id=settings.VOLCENGINE_CAPTION_CORRECT_TABLE_ID,
             )
 
         # Fall back to local Whisper if no caption credentials

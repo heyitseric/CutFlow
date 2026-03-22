@@ -49,9 +49,12 @@ def _group_consecutive_sentence_clips(
 
 def _group_text(group: list[ExportClip], text_source: str) -> str:
     if text_source == "transcript":
-        return "".join(
+        pieces = [
             seg.transcript_text or seg.script_text for seg in group
-        )
+        ]
+        if pieces and len(set(pieces)) == 1:
+            return pieces[0]
+        return "".join(pieces)
     return group[0].script_text
 
 

@@ -101,6 +101,70 @@ def _join_words(all_words: list[dict], start_idx: int, end_idx: int) -> str:
     return "".join(word["word"] for word in all_words[start_idx:end_idx])
 
 
+def _score_window_fit(script_text: str, candidate_text: str) -> float:
+    clean_script = _clean_text(script_text)
+    clean_candidate = _clean_text(candidate_text)
+    if not clean_script or not clean_candidate:
+        return float("-inf")
+    return float(fuzz.ratio(clean_script, clean_candidate))
+
+
+def _rebalance_clause_boundaries(
+    clause_matches: list[tuple[str, int, int]],
+    all_words: list[dict],
+) -> list[tuple[str, int, int]]:
+    """Reassign tiny boundary gaps/overlaps so clause splits stay lossless."""
+    if len(clause_matches) < 2:
+        return clause_matches
+
+    adjusted = [list(clause_matches[0])]
+
+    for clause_text, start_idx, end_idx in clause_matches[1:]:
+        prev_clause = adjusted[-1]
+        prev_text = prev_clause[0]
+        prev_start = prev_clause[1]
+        prev_end = prev_clause[2]
+
+        boundary_delta = start_idx - prev_end
+        if abs(boundary_delta) <= 4:
+            baseline_score = (
+                _score_window_fit(
+                    prev_text,
+                    _join_words(all_words, prev_start, prev_end),
+                )
+                + _score_window_fit(
+                    clause_text,
+                    _join_words(all_words, start_idx, end_idx),
+                )
+            )
+            boundary_min = max(prev_start + 1, min(prev_end, start_idx))
+            boundary_max = min(end_idx - 1, max(prev_end, start_idx))
+            best_split = start_idx
+            best_score = float("-inf")
+
+            for split_idx in range(boundary_min, boundary_max + 1):
+                left_candidate = _join_words(all_words, prev_start, split_idx)
+                right_candidate = _join_words(all_words, split_idx, end_idx)
+                score = (
+                    _score_window_fit(prev_text, left_candidate)
+                    + _score_window_fit(clause_text, right_candidate)
+                )
+                if score > best_score:
+                    best_score = score
+                    best_split = split_idx
+
+            if best_score > baseline_score:
+                prev_clause[2] = best_split
+                start_idx = best_split
+
+        adjusted.append([clause_text, start_idx, end_idx])
+
+    return [
+        (clause_text, start_idx, end_idx)
+        for clause_text, start_idx, end_idx in adjusted
+    ]
+
+
 def _find_best_clause_window(
     clause_text: str,
     all_words: list[dict],
@@ -152,6 +216,8 @@ def _merge_clause_matches(
     clause_matches: list[tuple[str, int, int]],
     all_words: list[dict],
 ) -> list[AlignedSegment]:
+    clause_matches = _rebalance_clause_boundaries(clause_matches, all_words)
+
     if not clause_matches:
         return [copy.deepcopy(seg)]
 

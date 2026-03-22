@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     # Volcengine Caption API (cloud transcription)
     VOLCENGINE_CAPTION_APPID: str = ""
     VOLCENGINE_CAPTION_TOKEN: str = ""
+    VOLCENGINE_CAPTION_BOOSTING_TABLE_ID: str = ""
+    VOLCENGINE_CAPTION_CORRECT_TABLE_ID: str = ""
 
     # Data directories
     DATA_DIR: Path = Path(__file__).resolve().parent.parent / "data"

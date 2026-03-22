@@ -86,3 +86,29 @@ def test_generate_srt_joins_transcript_text_across_split_clips():
     assert "第一句\n台词" not in srt
     assert "第一句台词" in srt
     assert "00:00:00,000 --> 00:00:02,500" in srt
+
+
+def test_generate_srt_deduplicates_identical_transcript_text_for_split_clips():
+    segments = [
+        ExportClip(
+            script_index=0,
+            clip_index=0,
+            start_time=10.0,
+            end_time=11.0,
+            script_text="第一句台词",
+            transcript_text="第一句台词",
+        ),
+        ExportClip(
+            script_index=0,
+            clip_index=1,
+            start_time=11.0,
+            end_time=12.0,
+            script_text="第一句台词",
+            transcript_text="第一句台词",
+        ),
+    ]
+
+    srt = generate_srt(segments, text_source="transcript")
+
+    assert srt.count("第一句台词") == 1
+    assert "00:00:00,000 --> 00:00:02,000" in srt

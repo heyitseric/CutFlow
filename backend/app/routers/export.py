@@ -22,6 +22,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["export"])
 
 
+def _compute_export_audio_duration(job) -> float:
+    transcription_duration = job.transcription.duration if job.transcription else 0.0
+    aligned_end = max(
+        (seg.end_time for seg in job.alignment or []),
+        default=0.0,
+    )
+    return max(transcription_duration, aligned_end)
+
+
 @router.post("/jobs/{job_id}/export", response_model=ExportResponse)
 async def export_job(job_id: str, request: ExportRequest):
     """Generate EDL/FCPXML/SRT files for the job."""
@@ -40,7 +49,7 @@ async def export_job(job_id: str, request: ExportRequest):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     files: list[str] = []
-    audio_duration = job.transcription.duration if job.transcription else 0.0
+    audio_duration = _compute_export_audio_duration(job)
     export_clips = build_export_clips(job.alignment)
 
     # Always generate all formats — they're small text files

@@ -1,5 +1,6 @@
 import logging
 import re
+from bisect import bisect_left
 from typing import Optional
 
 from rapidfuzz import fuzz
@@ -94,50 +95,112 @@ def _clean_alignment_text(text: str) -> str:
     return _ALIGN_CLEAN_RE.sub("", text)
 
 
+def _edge_similarity(
+    script_text: str,
+    candidate_text: str,
+    *,
+    edge: str,
+    max_chars: int = 8,
+) -> float:
+    clean_script = _clean_alignment_text(script_text)
+    clean_candidate = _clean_alignment_text(candidate_text)
+    if not clean_script or not clean_candidate:
+        return 0.0
+
+    edge_len = min(max_chars, len(clean_script), len(clean_candidate))
+    if edge_len <= 0:
+        return 0.0
+
+    if edge == "prefix":
+        return float(fuzz.ratio(clean_script[:edge_len], clean_candidate[:edge_len]))
+    return float(fuzz.ratio(clean_script[-edge_len:], clean_candidate[-edge_len:]))
+
+
+def _window_text(
+    all_words: list[dict],
+    start_idx: int,
+    end_idx: int,
+) -> str:
+    return "".join(w["word"] for w in all_words[start_idx:end_idx])
+
+
+def _score_window_fit(script_text: str, candidate_text: str) -> float:
+    clean_script = _clean_alignment_text(script_text)
+    clean_candidate = _clean_alignment_text(candidate_text)
+    if not clean_script or not clean_candidate:
+        return float("-inf")
+
+    ratio = float(fuzz.ratio(clean_script, clean_candidate))
+    prefix = _edge_similarity(script_text, candidate_text, edge="prefix")
+    suffix = _edge_similarity(script_text, candidate_text, edge="suffix")
+    return ratio + (0.20 * prefix) + (0.05 * suffix)
+
+
 def _refine_word_window(
     script_text: str,
     all_words: list[dict],
     start_idx: int,
     end_idx: int,
 ) -> tuple[int, int]:
-    """Trim obvious extra words from the edges of a matched window.
+    """Retune a matched window without drifting far from the coarse match.
 
     The LLM matcher often returns a slightly broader segment span than the
-    actual scripted speech. We keep the matched window as a hard boundary,
-    then search only within that window for a tighter subrange whose text is
-    a better lexical fit for the script.
+    actual scripted speech, but occasionally it also starts too late and lands
+    in the middle of a sentence. Search a small neighborhood around the coarse
+    window so we can both trim extras and recover missed leading words.
     """
     clean_script = _clean_alignment_text(script_text)
     if not clean_script:
         return start_idx, end_idx
 
-    tokens = [w["word"] for w in all_words[start_idx:end_idx]]
-    if len(tokens) <= 3:
+    if end_idx - start_idx <= 3:
         return start_idx, end_idx
 
-    base_text = _clean_alignment_text("".join(tokens))
-    base_score = fuzz.ratio(clean_script, base_text)
+    search_pad = min(25, len(all_words) - 3)
+    search_start = max(0, start_idx - search_pad)
+    search_end = min(len(all_words), end_idx + search_pad)
+
+    base_text = _window_text(all_words, start_idx, end_idx)
+    base_score = _score_window_fit(script_text, base_text)
     best_score = base_score
     best_start = start_idx
     best_end = end_idx
 
-    max_trim = min(25, len(tokens) - 3)
-    for trim_left in range(max_trim + 1):
-        for trim_right in range(max_trim + 1):
-            candidate_len = len(tokens) - trim_left - trim_right
+    start_min = search_start
+    start_max = min(start_idx + search_pad, search_end - 3)
+
+    for candidate_start in range(start_min, start_max + 1):
+        end_min = max(candidate_start + 3, end_idx - search_pad)
+        end_max = search_end
+        for candidate_end in range(end_min, end_max + 1):
+            candidate_len = candidate_end - candidate_start
             if candidate_len < 3:
                 continue
 
-            candidate_start = start_idx + trim_left
-            candidate_end = end_idx - trim_right
-            candidate_text = _clean_alignment_text(
-                "".join(tokens[trim_left:len(tokens) - trim_right])
-            )
+            candidate_text = _window_text(all_words, candidate_start, candidate_end)
             if not candidate_text:
                 continue
 
-            score = fuzz.ratio(clean_script, candidate_text)
-            if score > best_score:
+            score = _score_window_fit(script_text, candidate_text)
+            prefix = _edge_similarity(script_text, candidate_text, edge="prefix")
+            best_prefix = _edge_similarity(
+                script_text,
+                _window_text(all_words, best_start, best_end),
+                edge="prefix",
+            )
+
+            if (
+                score > best_score
+                or (
+                    abs(score - best_score) <= 0.01
+                    and prefix > best_prefix
+                )
+                or (
+                    abs(score - best_score) <= 0.01
+                    and abs(prefix - best_prefix) <= 0.01
+                    and candidate_start < best_start
+                )
+            ):
                 best_score = score
                 best_start = candidate_start
                 best_end = candidate_end
@@ -157,6 +220,106 @@ def _refine_word_window(
     return best_start, best_end
 
 
+def _resolve_adjacent_boundary(
+    left_script_text: str,
+    right_script_text: str,
+    all_words: list[dict],
+    left_start: int,
+    left_end: int,
+    right_start: int,
+    right_end: int,
+) -> tuple[int, int]:
+    """Choose a shared split point when adjacent windows overlap.
+
+    First principle: once two neighboring script sentences claim overlapping
+    transcript words, we should stop treating them independently and instead
+    search for the best single boundary between them.
+    """
+    boundary_min = max(left_start + 1, right_start)
+    boundary_max = min(left_end, right_end - 1)
+    if boundary_min > boundary_max:
+        return left_end, right_start
+
+    best_split = right_start
+    best_score = float("-inf")
+
+    for split_idx in range(boundary_min, boundary_max + 1):
+        left_candidate = _window_text(all_words, left_start, split_idx)
+        right_candidate = _window_text(all_words, split_idx, right_end)
+        score = (
+            _score_window_fit(left_script_text, left_candidate)
+            + _score_window_fit(right_script_text, right_candidate)
+        )
+        if score > best_score:
+            best_score = score
+            best_split = split_idx
+
+    return best_split, best_split
+
+
+def _rebalance_adjacent_windows(
+    script_sentences: list[ScriptSentence],
+    refined_windows: dict[int, tuple[int, int]],
+    all_words: list[dict],
+    hooks: dict[int, int],
+) -> None:
+    """Remove overlap between neighboring non-hook script windows in-place."""
+    script_lookup = {
+        sentence.index: sentence.text for sentence in script_sentences
+    }
+    previous_script_index: Optional[int] = None
+
+    for sentence in script_sentences:
+        script_index = sentence.index
+        if script_index not in refined_windows or script_index in hooks:
+            continue
+
+        if previous_script_index is None:
+            previous_script_index = script_index
+            continue
+
+        prev_start, prev_end = refined_windows[previous_script_index]
+        curr_start, curr_end = refined_windows[script_index]
+
+        if curr_start < prev_start:
+            previous_script_index = script_index
+            continue
+
+        if curr_start >= prev_end:
+            previous_script_index = script_index
+            continue
+
+        new_prev_end, new_curr_start = _resolve_adjacent_boundary(
+            left_script_text=script_lookup[previous_script_index],
+            right_script_text=sentence.text,
+            all_words=all_words,
+            left_start=prev_start,
+            left_end=prev_end,
+            right_start=curr_start,
+            right_end=curr_end,
+        )
+
+        if (new_prev_end, new_curr_start) != (prev_end, curr_start):
+            logger.info(
+                "Rebalanced adjacent script windows: script[%d] [%d, %d) and "
+                "script[%d] [%d, %d) -> [%d, %d) and [%d, %d)",
+                previous_script_index,
+                prev_start,
+                prev_end,
+                script_index,
+                curr_start,
+                curr_end,
+                prev_start,
+                new_prev_end,
+                new_curr_start,
+                curr_end,
+            )
+            refined_windows[previous_script_index] = (prev_start, new_prev_end)
+            refined_windows[script_index] = (new_curr_start, curr_end)
+
+        previous_script_index = script_index
+
+
 def _longest_increasing_subsequence(positions: list[int]) -> list[int]:
     """
     Find the longest increasing subsequence of positions.
@@ -166,23 +329,28 @@ def _longest_increasing_subsequence(positions: list[int]) -> list[int]:
         return []
 
     n = len(positions)
-    # dp[i] = length of LIS ending at index i
-    dp = [1] * n
     parent = [-1] * n
+    tail_indices: list[int] = []
 
-    for i in range(1, n):
-        for j in range(i):
-            if positions[j] < positions[i] and dp[j] + 1 > dp[i]:
-                dp[i] = dp[j] + 1
-                parent[i] = j
+    for idx, position in enumerate(positions):
+        insert_at = bisect_left(
+            [positions[tail_idx] for tail_idx in tail_indices],
+            position,
+        )
+        if insert_at > 0:
+            parent[idx] = tail_indices[insert_at - 1]
 
-    # Reconstruct
-    max_len = max(dp)
-    idx = dp.index(max_len)
-    lis_indices = []
+        if insert_at == len(tail_indices):
+            tail_indices.append(idx)
+        else:
+            tail_indices[insert_at] = idx
+
+    lis_indices: list[int] = []
+    idx = tail_indices[-1] if tail_indices else -1
     while idx != -1:
         lis_indices.append(idx)
         idx = parent[idx]
+
     lis_indices.reverse()
     return lis_indices
 
@@ -303,7 +471,36 @@ def align_segments(
         best_matches, len(script_sentences), all_words
     )
 
-    # Step 3: Detect reordering with LIS
+    refined_windows: dict[int, tuple[int, int]] = {}
+    for sentence in script_sentences:
+        si = sentence.index
+        if si not in optimized:
+            continue
+
+        match = optimized[si]
+        start_idx = max(0, min(match.transcript_start_word_idx, len(all_words) - 1))
+        end_exclusive = max(
+            start_idx + 1,
+            min(match.transcript_end_word_idx, len(all_words)),
+        )
+        refined_windows[si] = _refine_word_window(
+            sentence.text,
+            all_words,
+            start_idx,
+            end_exclusive,
+        )
+
+    _rebalance_adjacent_windows(
+        script_sentences=script_sentences,
+        refined_windows=refined_windows,
+        all_words=all_words,
+        hooks=hooks,
+    )
+
+    # Step 3: Detect reordering with LIS.
+    # Keep the original coarse-match positions for reorder detection so we
+    # preserve the existing copy semantics; refined windows are only for
+    # tightening boundaries after the match is already chosen.
     # Exclude hook copies from LIS computation so they don't distort the
     # chronological ordering of non-hook lines.
     matched_script_indices = sorted(
@@ -348,18 +545,8 @@ def align_segments(
 
         match = optimized[si]
 
-        # Get timestamps from word indices
-        start_idx = max(0, min(match.transcript_start_word_idx, len(all_words) - 1))
-        end_exclusive = max(
-            start_idx + 1,
-            min(match.transcript_end_word_idx, len(all_words)),
-        )
-        start_idx, end_exclusive = _refine_word_window(
-            sentence.text,
-            all_words,
-            start_idx,
-            end_exclusive,
-        )
+        # Get timestamps from the refined word window
+        start_idx, end_exclusive = refined_windows[si]
         end_idx = max(start_idx, end_exclusive - 1)
 
         start_time = all_words[start_idx]["start"] if all_words else 0.0

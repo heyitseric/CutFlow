@@ -20,6 +20,48 @@ from app.services.silence_utils import (
 logger = logging.getLogger(__name__)
 
 
+def _trim_tiny_cross_sentence_overlaps(
+    segments: list[AlignedSegment],
+    active_statuses: tuple[SegmentStatus, ...],
+    max_overlap: float = 0.2,
+) -> None:
+    """Remove tiny overlaps between neighboring script sentences.
+
+    Precise boundary snapping can occasionally make two adjacent sentences
+    touch or overlap by a fraction of a second. That creates audible
+    repetition in editors even though the overlap is tiny. We only trim when
+    the overlap is small and the clips belong to different script sentences.
+    """
+    previous_active: AlignedSegment | None = None
+
+    for seg in segments:
+        if seg.status not in active_statuses:
+            continue
+
+        if previous_active is None:
+            previous_active = seg
+            continue
+
+        if previous_active.script_index == seg.script_index:
+            previous_active = seg
+            continue
+
+        overlap = previous_active.end_time - seg.start_time
+        if 0 < overlap <= max_overlap:
+            new_end = max(previous_active.start_time, seg.start_time)
+            logger.info(
+                "Trimmed tiny cross-sentence overlap %.3fs between "
+                "script[%d] and script[%d]",
+                overlap,
+                previous_active.script_index,
+                seg.script_index,
+            )
+            previous_active.end_time = new_end
+            previous_active.raw_end_time = new_end
+
+        previous_active = seg
+
+
 def optimize_segments(
     segments: list[AlignedSegment],
     audio_path: str,
@@ -97,6 +139,8 @@ def optimize_segments(
             new_seg.raw_end_time = sub_end
             # Keep script_index the same for all sub-clips (same sentence).
             optimized.append(new_seg)
+
+    _trim_tiny_cross_sentence_overlaps(optimized, active_statuses)
 
     total_after = sum(s.end_time - s.start_time for s in optimized)
     removed = total_before - total_after

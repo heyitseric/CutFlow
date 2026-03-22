@@ -72,3 +72,62 @@ def test_optimize_segments_preserves_order_and_updates_raw_times(monkeypatch):
     assert optimized[3].end_time == 7.0
     assert optimized[3].raw_start_time == 5.0
     assert optimized[3].raw_end_time == 7.0
+
+
+def test_optimize_segments_trims_tiny_overlap_between_different_sentences(monkeypatch):
+    monkeypatch.setattr(
+        clip_optimizer,
+        "find_precise_start",
+        lambda *_args, **_kwargs: _args[1],
+    )
+    monkeypatch.setattr(
+        clip_optimizer,
+        "find_precise_end",
+        lambda *_args, **_kwargs: _args[1],
+    )
+    monkeypatch.setattr(
+        clip_optimizer,
+        "split_clip_at_silences",
+        lambda _audio_path, clip_start, clip_end, **_kwargs: [(clip_start, clip_end)],
+    )
+
+    segments = [
+        _segment(8, SegmentStatus.MATCHED, 6.446, 10.2),
+        _segment(9, SegmentStatus.MATCHED, 10.08, 15.294),
+        _segment(9, SegmentStatus.MATCHED, 16.051, 20.388),
+    ]
+
+    optimized = clip_optimizer.optimize_segments(segments, "dummy.wav")
+
+    assert optimized[0].end_time == 10.08
+    assert optimized[0].raw_end_time == 10.08
+    assert optimized[1].start_time == 10.08
+    assert optimized[1].end_time == 15.294
+
+
+def test_optimize_segments_keeps_tiny_overlap_for_same_sentence(monkeypatch):
+    monkeypatch.setattr(
+        clip_optimizer,
+        "find_precise_start",
+        lambda *_args, **_kwargs: _args[1],
+    )
+    monkeypatch.setattr(
+        clip_optimizer,
+        "find_precise_end",
+        lambda *_args, **_kwargs: _args[1],
+    )
+    monkeypatch.setattr(
+        clip_optimizer,
+        "split_clip_at_silences",
+        lambda _audio_path, clip_start, clip_end, **_kwargs: [(clip_start, clip_end)],
+    )
+
+    segments = [
+        _segment(9, SegmentStatus.MATCHED, 10.0, 12.0),
+        _segment(9, SegmentStatus.MATCHED, 11.9, 14.0),
+    ]
+
+    optimized = clip_optimizer.optimize_segments(segments, "dummy.wav")
+
+    assert optimized[0].end_time == 12.0
+    assert optimized[1].start_time == 11.9

@@ -96,6 +96,15 @@ class _AggressiveDecider:
         ]
 
 
+class _DropMeaningfulPrefixDecider:
+    async def decide(self, **_kwargs):
+        return [
+            {"idx": 0, "action": "REMOVE"},
+            {"idx": 1, "action": "KEEP"},
+            {"idx": 2, "action": "KEEP"},
+        ]
+
+
 @pytest.mark.asyncio
 async def test_semantic_fine_cut_rejects_over_aggressive_llm_trim():
     transcription = TranscriptionResult(
@@ -151,6 +160,72 @@ async def test_semantic_fine_cut_rejects_over_aggressive_llm_trim():
     assert len(refined) == 1
     assert refined[0].start_time == 0.0
     assert refined[0].end_time == 1.5
+
+
+@pytest.mark.asyncio
+async def test_semantic_fine_cut_restores_meaningful_prefix_chunk():
+    transcription = TranscriptionResult(
+        segments=[
+            TranscriptionSegment(
+                text="就我自己这病",
+                start=0.0,
+                end=0.4,
+                words=[
+                    _word("就", 0.00, 0.05),
+                    _word("我", 0.05, 0.10),
+                    _word("自", 0.10, 0.15),
+                    _word("己", 0.15, 0.20),
+                    _word("这", 0.20, 0.25),
+                    _word("病", 0.25, 0.30),
+                ],
+            ),
+            TranscriptionSegment(
+                text="我都没看好",
+                start=0.6,
+                end=1.0,
+                words=[
+                    _word("我", 0.60, 0.65),
+                    _word("都", 0.65, 0.70),
+                    _word("没", 0.70, 0.75),
+                    _word("看", 0.75, 0.80),
+                    _word("好", 0.80, 0.85),
+                ],
+            ),
+            TranscriptionSegment(
+                text="你说这事靠谱吗",
+                start=1.2,
+                end=1.8,
+                words=[
+                    _word("你", 1.20, 1.25),
+                    _word("说", 1.25, 1.30),
+                    _word("这", 1.30, 1.35),
+                    _word("事", 1.35, 1.40),
+                    _word("靠", 1.40, 1.45),
+                    _word("谱", 1.45, 1.50),
+                    _word("吗", 1.50, 1.55),
+                ],
+            ),
+        ]
+    )
+    segments = [
+        _segment(
+            "就我自己这病我都没看好你说这事靠谱吗",
+            "就我自己这病我都没看好你说这事靠谱吗",
+            0.0,
+            1.8,
+        )
+    ]
+
+    refined = await SemanticFineCutService(
+        decider=_DropMeaningfulPrefixDecider()
+    ).refine(
+        segments,
+        transcription,
+    )
+
+    assert len(refined) == 1
+    assert refined[0].start_time == 0.0
+    assert refined[0].transcript_text.startswith("就我自己这病")
 
 
 @pytest.mark.asyncio

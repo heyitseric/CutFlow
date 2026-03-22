@@ -6,7 +6,10 @@ from app.models.schemas import (
     TranscriptionSegment,
     TranscriptionWord,
 )
-from app.services.fine_cut import fine_cut_segments
+from app.services.fine_cut import (
+    _rebalance_clause_boundaries,
+    fine_cut_segments,
+)
 
 
 def _word(char: str, start: float, end: float) -> TranscriptionWord:
@@ -140,3 +143,47 @@ def test_fine_cut_segments_falls_back_when_clause_coverage_is_too_low():
     assert refined[0].script_text == aligned[0].script_text
     assert refined[0].start_time == aligned[0].start_time
     assert refined[0].end_time == aligned[0].end_time
+
+
+def test_rebalance_clause_boundaries_recovers_dropped_boundary_character():
+    left_text = "然后他也是在一些知名的医学院里面当教授"
+    right_text = "去培养别的医生出来的这么一个人"
+    all_words = [
+        {"word": ch, "start": idx * 0.1, "end": idx * 0.1 + 0.1}
+        for idx, ch in enumerate(left_text + right_text)
+    ]
+    dropped_char_boundary = len(left_text) - 1
+    clause_matches = [
+        (f"{left_text}，", 0, dropped_char_boundary),
+        (f"{right_text}，", dropped_char_boundary + 1, len(all_words)),
+    ]
+
+    rebalanced = _rebalance_clause_boundaries(clause_matches, all_words)
+
+    assert rebalanced[0] == (
+        f"{left_text}，",
+        0,
+        len(left_text),
+    )
+    assert rebalanced[1] == (
+        f"{right_text}，",
+        len(left_text),
+        len(all_words),
+    )
+
+
+def test_rebalance_clause_boundaries_preserves_real_gap_word():
+    left_text = "甲乙丙"
+    right_text = "丁戊己"
+    all_words = [
+        {"word": ch, "start": idx * 0.1, "end": idx * 0.1 + 0.1}
+        for idx, ch in enumerate(left_text + "啊" + right_text)
+    ]
+    clause_matches = [
+        (f"{left_text}，", 0, len(left_text)),
+        (f"{right_text}。", len(left_text) + 1, len(all_words)),
+    ]
+
+    rebalanced = _rebalance_clause_boundaries(clause_matches, all_words)
+
+    assert rebalanced == clause_matches

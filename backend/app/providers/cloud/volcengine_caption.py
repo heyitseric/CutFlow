@@ -26,9 +26,17 @@ logger = logging.getLogger(__name__)
 class VolcengineCaptionTranscriber(Transcriber):
     """Transcribe audio via the Volcengine Caption (字幕生成) REST API."""
 
-    def __init__(self, appid: str, token: str):
+    def __init__(
+        self,
+        appid: str,
+        token: str,
+        boosting_table_id: str = "",
+        correct_table_id: str = "",
+    ):
         self.appid = appid
         self.token = token
+        self.boosting_table_id = boosting_table_id.strip()
+        self.correct_table_id = correct_table_id.strip()
         self.base_url = "https://openspeech.bytedance.com/api/v1/vc"
 
     # ------------------------------------------------------------------
@@ -110,16 +118,7 @@ class VolcengineCaptionTranscriber(Transcriber):
     async def _submit(
         self, audio_data: bytes, content_type: str, language: str
     ) -> str:
-        params = {
-            "appid": self.appid,
-            "language": self._lang_code(language),
-            "use_itn": "True",
-            "use_punc": "True",
-            "caption_type": "speech",
-            "use_ddc": "True",
-            "words_per_line": "15",
-            "max_lines": "1",
-        }
+        params = self._build_submit_params(language)
         headers = {
             "Authorization": f"Bearer; {self.token}",
             "Content-Type": content_type,
@@ -146,6 +145,25 @@ class VolcengineCaptionTranscriber(Transcriber):
         if not task_id:
             raise RuntimeError("Volcengine submit returned no task id")
         return task_id
+
+    def _build_submit_params(self, language: str) -> dict[str, str]:
+        params = {
+            "appid": self.appid,
+            "language": self._lang_code(language),
+            "use_itn": "True",
+            "use_punc": "True",
+            "caption_type": "speech",
+            "use_ddc": "True",
+            "words_per_line": "15",
+            "max_lines": "1",
+        }
+        if self.boosting_table_id or self.correct_table_id:
+            params["asr_appid"] = self.appid
+        if self.boosting_table_id:
+            params["boosting_table_id"] = self.boosting_table_id
+        if self.correct_table_id:
+            params["id"] = self.correct_table_id
+        return params
 
     # ---- poll ---------------------------------------------------------
 
