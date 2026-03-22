@@ -2,7 +2,7 @@ import logging
 import os
 import xml.etree.ElementTree as ET
 
-from app.models.schemas import AlignedSegment, SegmentStatus
+from app.models.schemas import ExportClip
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def seconds_to_frames(seconds: float, fps: float) -> int:
 
 
 def generate_fcpxml(
-    segments: list[AlignedSegment],
+    segments: list[ExportClip],
     title: str = "A-Roll Rough Cut",
     frame_rate: float = 29.97,
     audio_filename: str = "audio.mp3",
@@ -113,21 +113,10 @@ def generate_fcpxml(
     event = ET.SubElement(library, "event", name="A-Roll Export")
     project = ET.SubElement(event, "project", name=title)
 
-    # Filter to active segments in script order
-    active = [
-        s for s in segments
-        if s.status not in (
-            SegmentStatus.DELETED,
-            SegmentStatus.UNMATCHED,
-            SegmentStatus.REJECTED,
-        )
-    ]
-    active.sort(key=lambda s: s.script_index)
-
     # Buffer is already applied by apply_buffer() in the pipeline.
     # Just clamp to valid range — do NOT re-apply buffer_duration here.
-    buffered_segments: list[tuple[AlignedSegment, float, float]] = []
-    for s in active:
+    buffered_segments: list[tuple[ExportClip, float, float]] = []
+    for s in segments:
         b_start = max(0.0, s.start_time)
         b_end = min(audio_duration, s.end_time) if audio_duration > 0 else s.end_time
         if b_end - b_start > 0:

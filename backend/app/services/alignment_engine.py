@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Optional
 
 from rapidfuzz import fuzz
@@ -15,6 +16,10 @@ from app.models.schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+_ALIGN_CLEAN_RE = re.compile(
+    r"[\s\u3000，。！？、；：\u201c\u201d\u2018\u2019《》（）【】…\u2014\-,.!?;:\"'()\[\]]+"
+)
 
 # ---------------------------------------------------------------------------
 # Hook / copy detection
@@ -83,6 +88,73 @@ def _classify_confidence(score: float) -> ConfidenceLevel:
     elif score >= settings.MEDIUM_CONFIDENCE_THRESHOLD:
         return ConfidenceLevel.MEDIUM
     return ConfidenceLevel.LOW
+
+
+def _clean_alignment_text(text: str) -> str:
+    return _ALIGN_CLEAN_RE.sub("", text)
+
+
+def _refine_word_window(
+    script_text: str,
+    all_words: list[dict],
+    start_idx: int,
+    end_idx: int,
+) -> tuple[int, int]:
+    """Trim obvious extra words from the edges of a matched window.
+
+    The LLM matcher often returns a slightly broader segment span than the
+    actual scripted speech. We keep the matched window as a hard boundary,
+    then search only within that window for a tighter subrange whose text is
+    a better lexical fit for the script.
+    """
+    clean_script = _clean_alignment_text(script_text)
+    if not clean_script:
+        return start_idx, end_idx
+
+    tokens = [w["word"] for w in all_words[start_idx:end_idx]]
+    if len(tokens) <= 3:
+        return start_idx, end_idx
+
+    base_text = _clean_alignment_text("".join(tokens))
+    base_score = fuzz.ratio(clean_script, base_text)
+    best_score = base_score
+    best_start = start_idx
+    best_end = end_idx
+
+    max_trim = min(25, len(tokens) - 3)
+    for trim_left in range(max_trim + 1):
+        for trim_right in range(max_trim + 1):
+            candidate_len = len(tokens) - trim_left - trim_right
+            if candidate_len < 3:
+                continue
+
+            candidate_start = start_idx + trim_left
+            candidate_end = end_idx - trim_right
+            candidate_text = _clean_alignment_text(
+                "".join(tokens[trim_left:len(tokens) - trim_right])
+            )
+            if not candidate_text:
+                continue
+
+            score = fuzz.ratio(clean_script, candidate_text)
+            if score > best_score:
+                best_score = score
+                best_start = candidate_start
+                best_end = candidate_end
+
+    if (best_start, best_end) != (start_idx, end_idx):
+        logger.info(
+            "Refined match window for script text from [%d, %d) to [%d, %d) "
+            "(%.1f -> %.1f)",
+            start_idx,
+            end_idx,
+            best_start,
+            best_end,
+            base_score,
+            best_score,
+        )
+
+    return best_start, best_end
 
 
 def _longest_increasing_subsequence(positions: list[int]) -> list[int]:
@@ -278,14 +350,24 @@ def align_segments(
 
         # Get timestamps from word indices
         start_idx = max(0, min(match.transcript_start_word_idx, len(all_words) - 1))
-        end_idx = max(0, min(match.transcript_end_word_idx - 1, len(all_words) - 1))
+        end_exclusive = max(
+            start_idx + 1,
+            min(match.transcript_end_word_idx, len(all_words)),
+        )
+        start_idx, end_exclusive = _refine_word_window(
+            sentence.text,
+            all_words,
+            start_idx,
+            end_exclusive,
+        )
+        end_idx = max(start_idx, end_exclusive - 1)
 
         start_time = all_words[start_idx]["start"] if all_words else 0.0
         end_time = all_words[end_idx]["end"] if all_words else 0.0
 
         # Build transcript text from matched words
         matched_words = all_words[
-            match.transcript_start_word_idx:match.transcript_end_word_idx
+            start_idx:end_exclusive
         ]
         transcript_text = "".join(w["word"] for w in matched_words)
 
@@ -302,6 +384,12 @@ def align_segments(
             original_pos = match.transcript_start_word_idx if is_reordered else None
             status = SegmentStatus.COPY if is_reordered else SegmentStatus.MATCHED
             copy_source = None
+
+            if is_reordered:
+                logger.warning(
+                    "Marking out-of-order non-hook match for script[%d] as COPY",
+                    si,
+                )
 
         # Find pauses within this segment's time range
         segment_pauses = [

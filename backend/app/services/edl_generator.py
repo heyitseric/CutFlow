@@ -1,13 +1,13 @@
 import logging
 
-from app.models.schemas import AlignedSegment, SegmentStatus
+from app.models.schemas import ExportClip
 from app.utils.timecode import seconds_to_timecode
 
 logger = logging.getLogger(__name__)
 
 
 def generate_edl(
-    segments: list[AlignedSegment],
+    segments: list[ExportClip],
     title: str = "A-Roll Rough Cut",
     frame_rate: float = 29.97,
     audio_filename: str = "audio.mp3",
@@ -38,18 +38,11 @@ def generate_edl(
         "",
     ]
 
-    # Filter to active segments, sorted by script order
-    active = [
-        s for s in segments
-        if s.status not in (SegmentStatus.DELETED, SegmentStatus.UNMATCHED, SegmentStatus.REJECTED)
-    ]
-    active.sort(key=lambda s: s.script_index)
-
     # Build record timeline: segments placed sequentially
     record_pos = 0.0
     event_num = 1
 
-    for seg in active:
+    for seg in segments:
         # Buffer is already applied by apply_buffer() in the pipeline.
         # Just clamp to valid range — do NOT re-apply buffer_duration here.
         b_start = max(0.0, seg.start_time)

@@ -1,14 +1,62 @@
 import logging
 
-from app.models.schemas import AlignedSegment, SegmentStatus
+from app.models.schemas import ExportClip
 from app.utils.text_normalize import break_chinese_lines
 from app.utils.timecode import seconds_to_srt_time
 
 logger = logging.getLogger(__name__)
 
 
+def _group_consecutive_sentence_clips(
+    segments: list[ExportClip],
+) -> list[tuple[list[ExportClip], float]]:
+    """Group consecutive sub-clips that belong to the same script sentence.
+
+    Silence optimization may split one sentence into multiple export clips.
+    For subtitles we want one subtitle per sentence on the edited timeline,
+    not the same full sentence repeated for every tiny sub-clip.
+    """
+    groups: list[tuple[list[ExportClip], float]] = []
+
+    current_group: list[ExportClip] = []
+    current_start = 0.0
+    record_pos = 0.0
+
+    for seg in segments:
+        duration = seg.end_time - seg.start_time
+        if duration <= 0:
+            continue
+
+        if (
+            current_group
+            and current_group[-1].script_index == seg.script_index
+            and current_group[-1].script_text == seg.script_text
+        ):
+            current_group.append(seg)
+        else:
+            if current_group:
+                groups.append((current_group, current_start))
+            current_group = [seg]
+            current_start = record_pos
+
+        record_pos += duration
+
+    if current_group:
+        groups.append((current_group, current_start))
+
+    return groups
+
+
+def _group_text(group: list[ExportClip], text_source: str) -> str:
+    if text_source == "transcript":
+        return "".join(
+            seg.transcript_text or seg.script_text for seg in group
+        )
+    return group[0].script_text
+
+
 def generate_srt(
-    segments: list[AlignedSegment],
+    segments: list[ExportClip],
     text_source: str = "script",
     max_chars_per_line: int = 18,
 ) -> str:
@@ -23,37 +71,20 @@ def generate_srt(
         text_source: "script" (use script_text), "transcript" (use transcript_text)
         max_chars_per_line: Max characters per subtitle line (default 18 for Chinese)
     """
-    # Filter to active segments, sorted by script order
-    active = [
-        s for s in segments
-        if s.status not in (SegmentStatus.DELETED, SegmentStatus.UNMATCHED, SegmentStatus.REJECTED)
-    ]
-    active.sort(key=lambda s: s.script_index)
-
-    if not active:
+    if not segments:
         return ""
 
     srt_lines: list[str] = []
-    record_pos = 0.0
     subtitle_num = 1
 
-    for seg in active:
-        duration = seg.end_time - seg.start_time
-        if duration <= 0:
-            continue
+    for group, rec_start in _group_consecutive_sentence_clips(segments):
+        rec_end = rec_start + sum(
+            seg.end_time - seg.start_time for seg in group
+        )
 
-        # Record timecodes (edited timeline)
-        rec_start = record_pos
-        rec_end = record_pos + duration
-
-        # Choose text source
-        if text_source == "transcript":
-            text = seg.transcript_text or seg.script_text
-        else:
-            text = seg.script_text
+        text = _group_text(group, text_source)
 
         if not text.strip():
-            record_pos = rec_end
             continue
 
         # Break long Chinese text into multiple lines
@@ -67,8 +98,6 @@ def generate_srt(
         )
         srt_lines.append(subtitle_text)
         srt_lines.append("")
-
-        record_pos = rec_end
         subtitle_num += 1
 
     return "\n".join(srt_lines)

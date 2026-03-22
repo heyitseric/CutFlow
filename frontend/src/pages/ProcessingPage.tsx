@@ -74,6 +74,8 @@ function getStageSubtasks(isCloud: boolean): Record<number, SubTask[]> {
     ],
     6: [
       { key: 'align', label: '时间轴对齐' },
+      { key: 'fine_cut', label: '按脚本精剪内容' },
+      { key: 'semantic_trim', label: '语义 KEEP/REMOVE' },
       { key: 'buffer', label: '添加缓冲区间 (0.15s)' },
     ],
     7: [

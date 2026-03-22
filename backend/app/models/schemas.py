@@ -191,6 +191,17 @@ class ExportResponse(BaseModel):
     files: list[str] = Field(default_factory=list)
 
 
+class ExportClip(BaseModel):
+    script_index: int
+    clip_index: int = 0
+    start_time: float
+    end_time: float
+    script_text: str = ""
+    transcript_text: str = ""
+    is_reordered: bool = False
+    original_position: Optional[int] = None
+
+
 # --- Dictionary ---
 
 class DictionaryEntry(BaseModel):

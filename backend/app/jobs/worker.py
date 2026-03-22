@@ -11,9 +11,11 @@ from app.providers.config import get_local_matcher, get_matcher, get_transcriber
 from app.services.alignment_engine import align_segments
 from app.services.buffer import apply_buffer
 from app.services.dictionary import DictionaryService
+from app.services.fine_cut import fine_cut_segments
 from app.services.matcher import MatcherService
 from app.services.pause_processor import detect_pauses
 from app.services.script_parser import parse_script
+from app.services.semantic_fine_cut import SemanticFineCutService
 from app.services.transcript_consolidator import consolidate_segments
 from app.services.transcription import TranscriptionService
 
@@ -320,7 +322,7 @@ async def run_pipeline(job: JobData) -> None:
 
         # ---- Stage 6: Align segments (5%) ----
         p.update(6, "对齐校准", 0.0, "正在对齐脚本与音频片段…",
-                 sub_tasks={"align": "pending", "buffer": "pending"})
+                 sub_tasks={"align": "pending", "fine_cut": "pending", "semantic_trim": "pending", "buffer": "pending"})
 
         p.start_subtask("align")
         alignment = align_segments(
@@ -328,8 +330,28 @@ async def run_pipeline(job: JobData) -> None:
         )
         p.complete_subtask("align")
 
+        p.start_subtask("fine_cut")
+        p.update(6, "对齐校准", 0.45, "正在按脚本精剪句内内容…")
+        alignment = fine_cut_segments(alignment, transcription)
+        p.complete_subtask("fine_cut")
+
+        p.start_subtask("semantic_trim")
+        p.update(6, "对齐校准", 0.62, "正在进行语义 KEEP/REMOVE 判断…")
+        semantic_decider = None
+        if settings.CLOUD_PROVIDER == "volcengine" and settings.ARK_API_KEY:
+            try:
+                from app.providers.cloud.volcengine_fine_cut import (
+                    VolcEngineFineCutDecider,
+                )
+                semantic_decider = VolcEngineFineCutDecider()
+            except Exception as exc:
+                logger.warning("Semantic fine cut decider unavailable, using local-only mode: %s", exc)
+        semantic_fine_cut = SemanticFineCutService(decider=semantic_decider)
+        alignment = await semantic_fine_cut.refine(alignment, transcription)
+        p.complete_subtask("semantic_trim")
+
         p.start_subtask("buffer")
-        p.update(6, "对齐校准", 0.7, "对齐完成，准备应用缓冲…")
+        p.update(6, "对齐校准", 0.8, "精剪完成，准备整理边界…")
 
         # NOTE: Leading/trailing pause trimming is handled in
         # alignment_engine.align_segments() — do NOT duplicate it here.
@@ -337,6 +359,8 @@ async def run_pipeline(job: JobData) -> None:
         p.complete_subtask("buffer")
 
         p.update(6, "对齐校准", 1.0, "对齐校准完成")
+
+        clip_optimization_applied = False
 
         # ---- Stage 7: Clip optimization (4%) ----
         p.update(7, "片段优化", 0.0, "正在优化剪辑点…",
@@ -352,15 +376,20 @@ async def run_pipeline(job: JobData) -> None:
         else:
             audio_path = str(Path(job.audio_path).resolve())
             alignment = optimize_segments(alignment, audio_path)
+            clip_optimization_applied = True
             p.complete_subtask("optimize_clips")
             p.update(7, "片段优化", 1.0, "片段优化完成")
 
-        # ---- Stage 8: Generate results / apply buffer (3%) ----
-        p.update(8, "生成结果", 0.0, "正在应用缓冲…",
+        # ---- Stage 8: Generate results / finalize clips (3%) ----
+        p.update(8, "生成结果", 0.0, "正在整理最终片段…",
                  sub_tasks={"apply_buffer": "pending", "gen_results": "pending", "preview": "pending"})
 
         p.start_subtask("apply_buffer")
-        alignment = apply_buffer(alignment, settings.BUFFER_DURATION)
+        if clip_optimization_applied:
+            logger.info("Skipping fixed buffer because precise clip optimization already ran")
+            p.update(8, "生成结果", 0.2, "已保留精确切点，跳过固定缓冲…")
+        else:
+            alignment = apply_buffer(alignment, settings.BUFFER_DURATION)
         job.alignment = alignment
         p.complete_subtask("apply_buffer")
 

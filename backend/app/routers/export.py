@@ -14,6 +14,7 @@ from app.models.schemas import (
     SegmentStatus,
 )
 from app.services.edl_generator import generate_edl
+from app.services.export_clips import build_export_clips
 from app.services.fcpxml_generator import generate_fcpxml
 from app.services.srt_generator import generate_srt
 
@@ -40,11 +41,12 @@ async def export_job(job_id: str, request: ExportRequest):
 
     files: list[str] = []
     audio_duration = job.transcription.duration if job.transcription else 0.0
+    export_clips = build_export_clips(job.alignment)
 
     # Always generate all formats — they're small text files
     # EDL
     edl_content = generate_edl(
-        segments=job.alignment,
+        segments=export_clips,
         title=f"Job_{job_id}",
         frame_rate=request.frame_rate,
         audio_filename=job.audio_filename,
@@ -59,7 +61,7 @@ async def export_job(job_id: str, request: ExportRequest):
 
     # FCPXML
     fcpxml_content = generate_fcpxml(
-        segments=job.alignment,
+        segments=export_clips,
         title=f"Job_{job_id}",
         frame_rate=request.frame_rate,
         audio_filename=job.audio_filename,
@@ -74,7 +76,7 @@ async def export_job(job_id: str, request: ExportRequest):
 
     # SRT
     srt_content = generate_srt(
-        segments=job.alignment,
+        segments=export_clips,
         text_source=request.subtitle_source if request.subtitle_source != "llm_corrected" else "script",
     )
     srt_path = output_dir / f"{job_id}.srt"

@@ -39,20 +39,29 @@ def optimize_segments(
     Returns:
         Optimized list of segments (may be longer due to splits)
     """
+    active_statuses = (
+        SegmentStatus.MATCHED,
+        SegmentStatus.COPY,
+        SegmentStatus.APPROVED,
+    )
     active_segments = [
         s for s in segments
-        if s.status in (SegmentStatus.MATCHED, SegmentStatus.APPROVED)
+        if s.status in active_statuses
     ]
 
     if not active_segments:
         logger.warning("No active segments to optimize")
-        return segments
+        return [copy.deepcopy(seg) for seg in segments]
 
     total_before = sum(s.end_time - s.start_time for s in active_segments)
-    optimized = []
+    optimized: list[AlignedSegment] = []
     split_count = 0
 
-    for seg in active_segments:
+    for seg in segments:
+        if seg.status not in active_statuses:
+            optimized.append(copy.deepcopy(seg))
+            continue
+
         # Step 1: Precise boundary detection
         precise_start = find_precise_start(
             audio_path, seg.start_time, noise_db=noise_boundary
@@ -76,21 +85,18 @@ def optimize_segments(
             noise_db=noise_internal,
         )
 
-        if len(sub_clips) == 1:
-            # No internal splits — just update times
-            new_seg = copy.deepcopy(seg)
-            new_seg.start_time = sub_clips[0][0]
-            new_seg.end_time = sub_clips[0][1]
-            optimized.append(new_seg)
-        else:
-            # Split into sub-segments
+        if len(sub_clips) > 1:
             split_count += len(sub_clips) - 1
-            for i, (sub_start, sub_end) in enumerate(sub_clips):
-                new_seg = copy.deepcopy(seg)
-                new_seg.start_time = sub_start
-                new_seg.end_time = sub_end
-                # Keep script_index same for all sub-clips (they're the same sentence)
-                optimized.append(new_seg)
+
+        for sub_start, sub_end in sub_clips:
+            new_seg = copy.deepcopy(seg)
+            # After waveform-based optimization, these become the source of truth.
+            new_seg.start_time = sub_start
+            new_seg.end_time = sub_end
+            new_seg.raw_start_time = sub_start
+            new_seg.raw_end_time = sub_end
+            # Keep script_index the same for all sub-clips (same sentence).
+            optimized.append(new_seg)
 
     total_after = sum(s.end_time - s.start_time for s in optimized)
     removed = total_before - total_after
@@ -106,9 +112,4 @@ def optimize_segments(
         (removed / total_before * 100) if total_before > 0 else 0,
     )
 
-    # Replace active segments with optimized ones, keep deleted/unmatched as-is
-    inactive = [
-        s for s in segments
-        if s.status not in (SegmentStatus.MATCHED, SegmentStatus.APPROVED)
-    ]
-    return optimized + inactive
+    return optimized
