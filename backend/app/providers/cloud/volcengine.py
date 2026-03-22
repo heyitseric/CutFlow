@@ -127,6 +127,9 @@ class VolcEngineMatcher(Matcher):
     ) -> tuple[str, list[dict]]:
         """Build a timestamped transcript string and a flat word list.
 
+        The transcript includes segment indices so the LLM can reference
+        segment ranges for multi-segment matching.
+
         Returns:
             (timestamped_text, all_words)
             where all_words is a list of {"word": str, "start": float, "end": float, "seg_idx": int}
@@ -137,7 +140,7 @@ class VolcEngineMatcher(Matcher):
         for seg_idx, seg in enumerate(transcript_segments):
             ts = self._format_timestamp(seg.get("start", 0.0))
             seg_text = seg.get("text", "")
-            lines.append(f"{ts} {seg_text}")
+            lines.append(f"[{seg_idx}] {ts} {seg_text}")
 
             for w in seg.get("words", []):
                 all_words.append({
@@ -164,8 +167,11 @@ class VolcEngineMatcher(Matcher):
 
     def _char_to_word_indices(
         self, start_char: int, end_char: int, all_words: list[dict]
-    ) -> tuple[int, int]:
+    ) -> Optional[tuple[int, int]]:
         """Map character offsets in the flat word string to word indices."""
+        if not all_words:
+            return None
+
         char_count = 0
         start_word_idx = 0
         end_word_idx = len(all_words)
@@ -181,9 +187,51 @@ class VolcEngineMatcher(Matcher):
 
         return start_word_idx, end_word_idx
 
+    def _seg_range_to_word_indices(
+        self, start_seg: int, end_seg: int, all_words: list[dict]
+    ) -> Optional[tuple[int, int]]:
+        """Map a segment index range [start_seg, end_seg] (inclusive) to word indices.
+
+        This is the most precise mapping method: it finds ALL words that
+        belong to the specified segment range and returns the first and
+        last+1 word indices.  Since words carry per-character timestamps,
+        the resulting range gives exact speech boundaries without any
+        leading/trailing silence.
+        """
+        if not all_words:
+            return None
+
+        if start_seg < 0 or end_seg < 0 or start_seg > end_seg:
+            logger.warning(
+                "Invalid segment range [%d, %d] from LLM response",
+                start_seg, end_seg,
+            )
+            return None
+
+        start_word_idx = len(all_words)
+        end_word_idx = 0
+
+        for idx, w in enumerate(all_words):
+            seg_idx = w.get("seg_idx", -1)
+            if start_seg <= seg_idx <= end_seg:
+                if idx < start_word_idx:
+                    start_word_idx = idx
+                if idx + 1 > end_word_idx:
+                    end_word_idx = idx + 1
+
+        # Fallback if no words found in the segment range
+        if start_word_idx >= end_word_idx:
+            logger.warning(
+                "No words found for segment range [%d, %d]",
+                start_seg, end_seg,
+            )
+            return None
+
+        return start_word_idx, end_word_idx
+
     def _time_to_word_indices(
         self, start_time: float, end_time: float, all_words: list[dict]
-    ) -> tuple[int, int]:
+    ) -> Optional[tuple[int, int]]:
         """Map start/end times (seconds) to word indices.
 
         Strategy: find all words that *overlap* with the [start_time, end_time]
@@ -194,7 +242,7 @@ class VolcEngineMatcher(Matcher):
         when the LLM-returned times had limited precision.
         """
         if not all_words:
-            return 0, 0
+            return None
 
         tolerance = 0.15  # seconds — forgive small LLM rounding errors
 
@@ -245,14 +293,21 @@ class VolcEngineMatcher(Matcher):
             "你是一位专业的视频剪辑师助手。我需要你帮我将脚本文本与视频的语音识别转录结果进行对齐匹配。\n\n"
             "语音识别可能存在同音字错误，请忽略这些差异，按语义匹配。\n\n"
             f"## 脚本原文：\n{numbered_script}\n\n"
-            f"## 转录片段（带时间戳）：\n{timestamped_transcript}\n\n"
-            "请为脚本中的每个句子找到对应的转录片段时间范围。\n"
+            f"## 转录片段（带编号和时间戳）：\n{timestamped_transcript}\n\n"
+            "请为脚本中的每个句子找到对应的转录片段范围。\n\n"
+            "**重要：一句脚本可能对应多个连续的转录片段。**\n"
+            "例如，脚本中一句长句\"你说这个事情可不可笑就是说白了我是个帮你看病的\"，\n"
+            "说话人可能在中间停顿了一下，所以实际上跨了转录片段[45]和[46]两个片段。\n"
+            "这种情况下，start_seg_index=45，end_seg_index=46。\n\n"
+            "**每个脚本句子必须完整匹配，宁多不少。如果一个脚本句子跨越多个转录段落，"
+            "end_seg_index 必须覆盖到最后一个包含相关内容的段落。**\n"
+            "**对于长句子（>30个字），特别注意不要只匹配前半段而遗漏后半段。**\n\n"
             "输出JSON数组，每个元素包含：\n"
             '  - "script_index": int（脚本句子编号）\n'
-            '  - "start_time": float（对应转录的开始时间，秒，保留1位小数）\n'
-            '  - "end_time": float（对应转录的结束时间，秒，保留1位小数）\n'
+            '  - "start_seg_index": int（对应转录的起始片段编号，含）\n'
+            '  - "end_seg_index": int（对应转录的结束片段编号，含）\n'
             '  - "score": int（匹配置信度 0-100）\n\n'
-            "start_time和end_time请直接使用转录片段时间戳中的数值（含小数），不要取整。\n"
+            "片段编号就是转录片段前面方括号里的数字。\n"
             "如果某句在转录中找不到对应，score设为0。\n"
             "注意：脚本开头几句可能是从后面复制到前面的'钩子'，不要假设脚本顺序等于时间顺序。\n\n"
             "只返回合法的JSON数组，不要输出其他内容。"
@@ -281,21 +336,46 @@ class VolcEngineMatcher(Matcher):
                     ))
                     continue
 
-                # Use time-based mapping (primary) — LLM returns times
-                start_time = m.get("start_time")
-                end_time = m.get("end_time")
+                # Primary: segment-index-based mapping (new format)
+                start_seg = m.get("start_seg_index")
+                end_seg = m.get("end_seg_index")
+                mapped_indices: Optional[tuple[int, int]] = None
 
-                if start_time is not None and end_time is not None:
-                    start_word_idx, end_word_idx = self._time_to_word_indices(
-                        float(start_time), float(end_time), all_words
+                if start_seg is not None and end_seg is not None:
+                    mapped_indices = self._seg_range_to_word_indices(
+                        int(start_seg), int(end_seg), all_words
                     )
-                else:
-                    # Fallback: char-based mapping if LLM returned chars
+                if mapped_indices is None:
+                    # Fallback: time-based mapping (legacy format)
+                    start_time = m.get("start_time")
+                    end_time = m.get("end_time")
+
+                    if start_time is not None and end_time is not None:
+                        mapped_indices = self._time_to_word_indices(
+                            float(start_time), float(end_time), all_words
+                        )
+
+                if mapped_indices is None:
+                    # Last resort: char-based mapping
                     start_char = m.get("start_char", 0)
                     end_char = m.get("end_char", 0)
-                    start_word_idx, end_word_idx = self._char_to_word_indices(
+                    mapped_indices = self._char_to_word_indices(
                         start_char, end_char, all_words
                     )
+
+                if mapped_indices is None:
+                    # No trustworthy coordinates were returned, so treat this
+                    # as an unmatched sentence rather than inventing a
+                    # transcript position.
+                    results.append(MatchResult(
+                        script_index=script_index,
+                        transcript_start_word_idx=0,
+                        transcript_end_word_idx=0,
+                        score=0.0,
+                    ))
+                    continue
+
+                start_word_idx, end_word_idx = mapped_indices
 
                 results.append(MatchResult(
                     script_index=script_index,
@@ -304,10 +384,100 @@ class VolcEngineMatcher(Matcher):
                     score=score,
                 ))
 
+            # Post-processing: validate coverage and expand truncated matches
+            results = self._validate_coverage(
+                results, batch_sentences, all_words, matches_data
+            )
+
             return results
         except Exception as e:
             logger.error(f"LLM batch matching failed: {e}")
             return []
+
+    def _validate_coverage(
+        self,
+        results: list[MatchResult],
+        batch_sentences: list[tuple[int, str]],
+        all_words: list[dict],
+        matches_data: list[dict],
+    ) -> list[MatchResult]:
+        """Check matched transcript text covers enough of the script sentence.
+
+        If coverage < 70%, try expanding end_seg_index by 1-2 segments to
+        capture the rest of a truncated sentence.
+        """
+        sentence_map = {idx: text for idx, text in batch_sentences}
+        match_data_map = {
+            int(m.get("script_index", -1)): m for m in matches_data
+        }
+
+        for i, result in enumerate(results):
+            if result.score == 0:
+                continue
+
+            script_text = sentence_map.get(result.script_index, "")
+            if not script_text or len(script_text) < 10:
+                continue  # skip short sentences, coverage check not meaningful
+
+            # Get matched transcript text from word indices
+            matched_words = all_words[
+                result.transcript_start_word_idx:result.transcript_end_word_idx
+            ]
+            matched_text = "".join(w["word"] for w in matched_words)
+
+            # Calculate character coverage
+            script_chars = set(script_text.replace(" ", ""))
+            matched_chars = set(matched_text.replace(" ", ""))
+            overlap = len(script_chars & matched_chars)
+            coverage = overlap / len(script_chars) if script_chars else 1.0
+
+            if coverage >= 0.7:
+                continue  # good enough
+
+            # Try expanding end_seg_index by 1-2
+            m_data = match_data_map.get(result.script_index)
+            if m_data is None:
+                continue
+
+            start_seg = m_data.get("start_seg_index")
+            end_seg = m_data.get("end_seg_index")
+            if start_seg is None or end_seg is None:
+                continue
+
+            best_coverage = coverage
+            best_indices = (result.transcript_start_word_idx, result.transcript_end_word_idx)
+
+            for expand in range(1, 3):
+                expanded = self._seg_range_to_word_indices(
+                    int(start_seg), int(end_seg) + expand, all_words
+                )
+                if expanded is None:
+                    break
+                exp_words = all_words[expanded[0]:expanded[1]]
+                exp_text = "".join(w["word"] for w in exp_words)
+                exp_chars = set(exp_text.replace(" ", ""))
+                exp_overlap = len(script_chars & exp_chars)
+                exp_coverage = exp_overlap / len(script_chars) if script_chars else 1.0
+
+                if exp_coverage > best_coverage:
+                    best_coverage = exp_coverage
+                    best_indices = expanded
+
+            if best_indices != (result.transcript_start_word_idx, result.transcript_end_word_idx):
+                logger.info(
+                    "Coverage fix for script[%d]: %.0f%% -> %.0f%% by expanding segments",
+                    result.script_index,
+                    coverage * 100,
+                    best_coverage * 100,
+                )
+                results[i] = MatchResult(
+                    script_index=result.script_index,
+                    transcript_start_word_idx=best_indices[0],
+                    transcript_end_word_idx=best_indices[1],
+                    score=result.score,
+                )
+
+        return results
 
     async def match_segments(
         self,

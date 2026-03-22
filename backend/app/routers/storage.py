@@ -2,6 +2,7 @@
 
 import logging
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -43,17 +44,45 @@ def _dir_size(path: Path) -> int:
 
 
 def _dir_files(path: Path) -> dict[str, int]:
-    """Return ``{filename: size}`` for each file directly under *path*."""
+    """Return ``{filename: size}`` for each file under *path* (recursive)."""
     if not path.exists():
         return {}
     result: dict[str, int] = {}
-    for f in path.iterdir():
+    for f in path.rglob("*"):
         if f.is_file():
             try:
                 result[f.name] = f.stat().st_size
             except OSError:
                 pass
     return result
+
+
+def _oldest_mtime(path: Path) -> Optional[datetime]:
+    """Return the earliest mtime among files under *path*."""
+    if not path.exists():
+        return None
+    earliest: Optional[float] = None
+    for f in path.rglob("*"):
+        if f.is_file():
+            try:
+                mt = f.stat().st_mtime
+                if earliest is None or mt < earliest:
+                    earliest = mt
+            except OSError:
+                pass
+    if earliest is not None:
+        return datetime.fromtimestamp(earliest)
+    return None
+
+
+def _safe_job_dir(parent: Path, job_id: str) -> Optional[Path]:
+    """Return ``parent / job_id`` only if it stays inside *parent*."""
+    candidate = (parent / job_id).resolve()
+    root = parent.resolve()
+    # Only allow strict descendants; the root directory itself is not a valid job dir.
+    if candidate != root and root in candidate.parents:
+        return candidate
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -97,32 +126,67 @@ class CleanupResponse(BaseModel):
 
 @router.get("/storage/stats", response_model=StorageStats)
 async def storage_stats():
-    """Return per-job and total disk usage."""
+    """Return per-job and total disk usage.
+
+    Scans ALL directories under uploads/ and outputs/, including orphan
+    directories that are no longer tracked by the job manager.
+    """
     settings = get_settings()
     manager = get_job_manager()
-    jobs = manager.list_jobs()
+
+    # Build a set of known job IDs from the manager
+    known_jobs = {job.job_id: job for job in manager.list_jobs()}
+
+    # Discover ALL job-ID directories on disk (uploads + outputs)
+    all_job_ids: set[str] = set()
+    for parent in (settings.UPLOAD_DIR, settings.OUTPUT_DIR):
+        if parent.exists():
+            for child in parent.iterdir():
+                if child.is_dir() and not child.name.startswith("."):
+                    all_job_ids.add(child.name)
 
     total = 0
     job_infos: list[StorageJobInfo] = []
 
-    for job in jobs:
-        upload_dir = settings.UPLOAD_DIR / job.job_id
-        output_dir = settings.OUTPUT_DIR / job.job_id
+    for job_id in all_job_ids:
+        upload_dir = settings.UPLOAD_DIR / job_id
+        output_dir = settings.OUTPUT_DIR / job_id
 
         upload_bytes = _dir_size(upload_dir)
         output_bytes = _dir_size(output_dir)
         job_total = upload_bytes + output_bytes
+
+        # Skip empty directories
+        if job_total == 0:
+            continue
+
         total += job_total
 
         files: dict[str, int] = {}
         files.update(_dir_files(upload_dir))
         files.update(_dir_files(output_dir))
 
+        # Use metadata from the job manager if available, otherwise infer
+        job = known_jobs.get(job_id)
+        if job:
+            display_name = getattr(job, "display_name", "") or job.script_filename
+            status = job.state.value
+            created_at = job.created_at.isoformat()
+        else:
+            # Orphan directory — derive info from files on disk
+            # Use the first recognizable filename as display name
+            upload_files = list(_dir_files(upload_dir).keys())
+            display_name = upload_files[0] if upload_files else job_id
+            status = "orphan"
+            # Use earliest file mtime as creation date
+            mtime = _oldest_mtime(upload_dir) or _oldest_mtime(output_dir)
+            created_at = mtime.isoformat() if mtime else ""
+
         job_infos.append(StorageJobInfo(
-            job_id=job.job_id,
-            display_name=getattr(job, "display_name", "") or job.script_filename,
-            status=job.state.value,
-            created_at=job.created_at.isoformat(),
+            job_id=job_id,
+            display_name=display_name,
+            status=status,
+            created_at=created_at,
             upload_bytes=upload_bytes,
             output_bytes=output_bytes,
             total_bytes=job_total,
@@ -151,15 +215,16 @@ async def storage_cleanup(req: CleanupRequest):
 
     for job_id in req.job_ids:
         job = manager.get_job(job_id)
-        if not job:
+
+        # For tracked jobs, don't delete if currently processing
+        if job and job.state.value not in ("review", "done", "error", "created"):
             continue
 
-        # Don't delete jobs that are currently processing
-        if job.state.value not in ("review", "done", "error", "created"):
+        upload_dir = _safe_job_dir(settings.UPLOAD_DIR, job_id)
+        output_dir = _safe_job_dir(settings.OUTPUT_DIR, job_id)
+        if upload_dir is None or output_dir is None:
+            logger.warning("Rejected unsafe storage cleanup job_id: %s", job_id)
             continue
-
-        upload_dir = settings.UPLOAD_DIR / job_id
-        output_dir = settings.OUTPUT_DIR / job_id
 
         if req.delete_uploads and upload_dir.exists():
             freed += _dir_size(upload_dir)
@@ -170,7 +235,8 @@ async def storage_cleanup(req: CleanupRequest):
             shutil.rmtree(output_dir, ignore_errors=True)
 
         if req.delete_job:
-            manager.delete_job(job_id)
+            if job:
+                manager.delete_job(job_id)
             deleted += 1
 
     # Persist changes

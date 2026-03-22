@@ -13,7 +13,7 @@ interface SubTask {
   label: string;
 }
 
-// ── Stage definitions (aligned with backend 1-7) ──
+// ── Stage definitions (aligned with backend 1-8) ──
 
 // ── Stage definitions — adapt to cloud vs local transcription ──
 
@@ -25,7 +25,8 @@ function getProcessingStages(isCloud: boolean) {
     { id: 4, name: '文本匹配' },
     { id: 5, name: '停顿检测' },
     { id: 6, name: '对齐校准' },
-    { id: 7, name: '生成结果' },
+    { id: 7, name: '片段优化' },
+    { id: 8, name: '生成结果' },
   ];
 }
 
@@ -76,6 +77,9 @@ function getStageSubtasks(isCloud: boolean): Record<number, SubTask[]> {
       { key: 'buffer', label: '添加缓冲区间 (0.15s)' },
     ],
     7: [
+      { key: 'optimize_clips', label: '优化剪辑点' },
+    ],
+    8: [
       { key: 'apply_buffer', label: '应用缓冲' },
       { key: 'gen_results', label: '生成匹配结果' },
       { key: 'preview', label: '生成预览数据' },

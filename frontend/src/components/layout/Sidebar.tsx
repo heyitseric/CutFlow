@@ -74,10 +74,18 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const nameClickTimerRef = useRef<number | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const deletePopoverRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  function clearPendingNameClick() {
+    if (nameClickTimerRef.current !== null) {
+      window.clearTimeout(nameClickTimerRef.current);
+      nameClickTimerRef.current = null;
+    }
+  }
 
   // Close menu on outside click
   useEffect(() => {
@@ -111,7 +119,12 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
     }
   }, [isRenaming]);
 
+  useEffect(() => {
+    return () => clearPendingNameClick();
+  }, []);
+
   function startRename() {
+    clearPendingNameClick();
     setMenuOpen(false);
     setRenameValue(job.displayName || job.scriptName || '');
     setIsRenaming(true);
@@ -182,9 +195,25 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
               maxLength={60}
             />
           ) : (
-            <span className={`flex-1 truncate text-xs font-medium ${
-              isActive ? 'text-amber' : 'text-text-primary'
-            }`}>
+            <span
+              className={`flex-1 truncate text-xs font-medium ${
+                isActive ? 'text-amber' : 'text-text-primary'
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isRenaming || confirmingDelete) return;
+                clearPendingNameClick();
+                nameClickTimerRef.current = window.setTimeout(() => {
+                  nameClickTimerRef.current = null;
+                  onSelect(job);
+                }, 250);
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                startRename();
+              }}
+              title="双击重命名"
+            >
               {truncate(displayLabel, 20)}
             </span>
           )}

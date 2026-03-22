@@ -29,9 +29,13 @@ function formatDate(iso: string): string {
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   completed: { label: '已完成', color: 'text-success', bg: 'bg-success/10' },
+  done: { label: '已完成', color: 'text-success', bg: 'bg-success/10' },
+  review: { label: '待审核', color: 'text-teal', bg: 'bg-teal/10' },
   processing: { label: '处理中', color: 'text-amber', bg: 'bg-amber/10' },
   error: { label: '错误', color: 'text-danger', bg: 'bg-danger/10' },
   uploading: { label: '上传中', color: 'text-teal', bg: 'bg-teal/10' },
+  created: { label: '已创建', color: 'text-text-secondary', bg: 'bg-panel' },
+  orphan: { label: '残留文件', color: 'text-warning', bg: 'bg-warning/10' },
 };
 
 function statusInfo(status: string) {

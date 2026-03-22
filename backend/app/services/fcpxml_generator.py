@@ -75,7 +75,7 @@ def generate_fcpxml(
         stem = audio_filename.rsplit(".", 1)[0] if "." in audio_filename else audio_filename
         media_filename = f"{stem}.mp4"
 
-    source_name = os.path.splitext(media_filename)[0]
+    source_name = media_filename  # name must include extension for JianYing
     source_total_frames = seconds_to_frames(audio_duration, fps) if audio_duration > 0 else 0
 
     # ── Root ──

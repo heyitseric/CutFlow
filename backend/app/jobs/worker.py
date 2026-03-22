@@ -31,8 +31,9 @@ STAGES = [
     (3, "语音转录", 55),      # Transcribing audio
     (4, "文本匹配", 20),      # Matching text
     (5, "停顿检测", 5),       # Detecting pauses
-    (6, "对齐校准", 5),       # Alignment
-    (7, "生成结果", 5),       # Generating results
+    (6, "对齐校准", 3),       # Alignment
+    (7, "片段优化", 4),       # Clip optimization
+    (8, "生成结果", 3),       # Generating results
 ]
 
 # Pre-compute cumulative offsets so we can quickly map stage-local progress
@@ -116,8 +117,9 @@ async def run_pipeline(job: JobData) -> None:
     3. Transcribe audio      (55%)
     4. Match script          (20%)
     5. Detect pauses         (5%)
-    6. Align segments        (5%)
-    7. Generate results      (5%)
+    6. Align segments        (3%)
+    7. Clip optimization     (4%)
+    8. Generate results      (3%)
     """
     settings = get_settings()
     manager = get_job_manager()
@@ -336,8 +338,25 @@ async def run_pipeline(job: JobData) -> None:
 
         p.update(6, "对齐校准", 1.0, "对齐校准完成")
 
-        # ---- Stage 7: Generate results / apply buffer (5%) ----
-        p.update(7, "生成结果", 0.0, "正在应用缓冲…",
+        # ---- Stage 7: Clip optimization (4%) ----
+        p.update(7, "片段优化", 0.0, "正在优化剪辑点…",
+                 sub_tasks={"optimize_clips": "pending"})
+
+        p.start_subtask("optimize_clips")
+        try:
+            from app.services.clip_optimizer import optimize_segments
+        except ImportError as exc:
+            logger.warning("Clip optimization unavailable, skipping: %s", exc)
+            p.complete_subtask("optimize_clips")
+            p.update(7, "片段优化", 1.0, "片段优化已跳过")
+        else:
+            audio_path = str(Path(job.audio_path).resolve())
+            alignment = optimize_segments(alignment, audio_path)
+            p.complete_subtask("optimize_clips")
+            p.update(7, "片段优化", 1.0, "片段优化完成")
+
+        # ---- Stage 8: Generate results / apply buffer (3%) ----
+        p.update(8, "生成结果", 0.0, "正在应用缓冲…",
                  sub_tasks={"apply_buffer": "pending", "gen_results": "pending", "preview": "pending"})
 
         p.start_subtask("apply_buffer")
@@ -346,7 +365,7 @@ async def run_pipeline(job: JobData) -> None:
         p.complete_subtask("apply_buffer")
 
         p.start_subtask("gen_results")
-        p.update(7, "生成结果", 0.5, "正在生成匹配结果…")
+        p.update(8, "生成结果", 0.5, "正在生成匹配结果…")
 
         matched_count = sum(
             1 for s in alignment
@@ -358,11 +377,11 @@ async def run_pipeline(job: JobData) -> None:
         p.complete_subtask("gen_results")
 
         p.start_subtask("preview")
-        p.update(7, "生成结果", 0.8, "正在生成预览数据…")
+        p.update(8, "生成结果", 0.8, "正在生成预览数据…")
         p.complete_subtask("preview")
 
         p.update(
-            7, "生成结果", 1.0,
+            8, "生成结果", 1.0,
             f"处理完成：{matched_count}/{len(alignment)} 段已匹配",
         )
 
@@ -372,7 +391,7 @@ async def run_pipeline(job: JobData) -> None:
             state=JobState.REVIEW,
             progress=1.0,
             message="处理完成，可以开始审阅。",
-            stage=7,
+            stage=8,
             stage_name="完成",
             stage_detail="处理完成，可以开始审阅。",
             estimated_remaining_seconds=0.0,
