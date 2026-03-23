@@ -1,4 +1,6 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
+import { CheckCircle2, RefreshCw } from 'lucide-react';
+import { Card } from '@/components/ui/card';
 
 interface FileDropZoneProps {
   accept: string;
@@ -38,19 +40,19 @@ export default function FileDropZone({ accept, label, icon, file, onFile }: File
   }
 
   return (
-    <div
+    <Card
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onClick={() => inputRef.current?.click()}
       className={`
-        group relative flex cursor-pointer flex-col items-center justify-center
-        rounded-2xl border-2 border-dashed p-10 transition-all duration-300 transition-cinematic
+        group flex cursor-pointer flex-col items-center justify-center
+        border-2 border-dashed p-10 transition-all duration-300
         ${dragging
-          ? 'border-amber bg-amber-glow scale-[1.02]'
+          ? 'border-primary bg-primary/5 scale-[1.02]'
           : file
-            ? 'border-success/30 bg-success-surface'
-            : 'border-border hover:border-amber-dim hover:bg-amber-glow/50'
+            ? 'border-success/30 bg-success/5'
+            : 'border-border hover:border-muted-foreground/30 hover:bg-accent'
         }
       `}
     >
@@ -68,41 +70,30 @@ export default function FileDropZone({ accept, label, icon, file, onFile }: File
       {file ? (
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-success/10 text-success">
-            <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+            <CheckCircle2 className="h-7 w-7" />
           </div>
           <div>
-            <p className="font-display text-sm font-medium text-text-primary">{file.name}</p>
-            <p className="mt-1 font-mono text-xs text-text-muted">{formatSize(file.size)}</p>
+            <p className="text-sm font-medium text-foreground">{file.name}</p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">{formatSize(file.size)}</p>
           </div>
-          <span className="rounded-full bg-elevated px-3 py-1 text-xs text-text-secondary transition-colors transition-smooth group-hover:bg-hover group-hover:text-amber">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground transition-colors group-hover:bg-accent group-hover:text-foreground">
+            <RefreshCw className="h-3 w-3" />
             点击更换文件
           </span>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-elevated text-text-muted transition-colors transition-smooth group-hover:bg-amber/10 group-hover:text-amber">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground transition-colors group-hover:bg-primary/5 group-hover:text-foreground">
             {icon}
           </div>
           <div>
-            <p className="font-display text-sm font-medium text-text-primary">{label}</p>
-            <p className="mt-1.5 text-xs text-text-muted">
+            <p className="text-sm font-medium text-foreground">{label}</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
               拖拽文件到此处，或点击选择
             </p>
           </div>
         </div>
       )}
-
-      {/* Decorative corner marks */}
-      {!file && (
-        <>
-          <div className="absolute left-3 top-3 h-4 w-4 border-l-2 border-t-2 border-border/50 rounded-tl transition-colors transition-smooth group-hover:border-amber/30" />
-          <div className="absolute right-3 top-3 h-4 w-4 border-r-2 border-t-2 border-border/50 rounded-tr transition-colors transition-smooth group-hover:border-amber/30" />
-          <div className="absolute bottom-3 left-3 h-4 w-4 border-b-2 border-l-2 border-border/50 rounded-bl transition-colors transition-smooth group-hover:border-amber/30" />
-          <div className="absolute bottom-3 right-3 h-4 w-4 border-b-2 border-r-2 border-border/50 rounded-br transition-colors transition-smooth group-hover:border-amber/30" />
-        </>
-      )}
-    </div>
+    </Card>
   );
 }

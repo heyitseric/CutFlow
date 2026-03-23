@@ -5,13 +5,29 @@ import Stepper from '../components/layout/Stepper';
 import { exportJob, downloadExportFile } from '../api/client';
 import { useJobStore } from '../stores/jobStore';
 import type { ExportRequest } from '../api/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  ArrowLeft,
+  Download,
+  Loader2,
+  CheckCircle2,
+  FileText,
+  Film,
+  Subtitles,
+  Info,
+} from 'lucide-react';
 
 const FRAME_RATES = [23.976, 24, 25, 29.97, 30];
 
-const FORMAT_INFO: Record<string, { label: string; desc: string }> = {
-  edl: { label: 'EDL', desc: '适用于 Premiere、DaVinci Resolve' },
-  fcpxml: { label: 'FCPXML', desc: '适用于 Final Cut Pro、剪映' },
-  srt: { label: 'SRT', desc: '字幕文件，可导入任何播放器' },
+const FORMAT_INFO: Record<string, { label: string; desc: string; icon: typeof FileText }> = {
+  edl: { label: 'EDL', desc: '适用于 Premiere、DaVinci Resolve', icon: FileText },
+  fcpxml: { label: 'FCPXML', desc: '适用于 Final Cut Pro、剪映', icon: Film },
+  srt: { label: 'SRT', desc: '字幕文件，可导入任何播放器', icon: Subtitles },
 };
 
 export default function ExportPage() {
@@ -100,167 +116,199 @@ export default function ExportPage() {
     <>
       <Stepper currentStep={3} jobId={id} />
       <PageContainer>
-        <div className="mb-10 text-center animate-fade-in-up">
-          <button
+        <div className="mb-10 text-center">
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => navigate(`/review/${id}`)}
-            className="mb-4 text-xs text-text-muted hover:text-text-secondary transition-colors transition-smooth"
+            className="mb-4 text-muted-foreground"
           >
-            ← 返回审核
-          </button>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-text-primary">导出</h1>
-          <p className="mt-3 text-sm text-text-secondary">选择格式和参数，导出剪辑文件</p>
+            <ArrowLeft className="size-3.5" />
+            返回审核
+          </Button>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">导出</h1>
+          <p className="mt-3 text-sm text-muted-foreground">选择格式和参数，导出剪辑文件</p>
         </div>
 
         <div className="mx-auto max-w-lg space-y-5">
           {/* Format selection */}
-          <div className="animate-fade-in-up delay-1 rounded-2xl border border-border bg-surface p-5">
-            <h3 className="mb-4 font-display text-sm font-semibold text-text-secondary">导出格式</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {(['edl', 'fcpxml', 'srt'] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => toggleFormat(f)}
-                  className={`flex flex-col items-center gap-1 rounded-xl border-2 p-4 text-center transition-all duration-300 transition-cinematic ${
-                    formats[f]
-                      ? 'border-amber/40 bg-amber-glow'
-                      : 'border-border hover:border-border hover:bg-elevated'
-                  }`}
-                >
-                  <span className={`font-display text-sm font-semibold ${formats[f] ? 'text-amber' : 'text-text-primary'}`}>
-                    {FORMAT_INFO[f].label}
-                  </span>
-                  <span className="text-[10px] text-text-muted">{FORMAT_INFO[f].desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-muted-foreground">导出格式</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-3">
+                {(['edl', 'fcpxml', 'srt'] as const).map((f) => {
+                  const Icon = FORMAT_INFO[f].icon;
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => toggleFormat(f)}
+                      className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${
+                        formats[f]
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-border hover:bg-accent'
+                      }`}
+                    >
+                      <Icon className={`size-4 ${formats[f] ? 'text-foreground' : 'text-muted-foreground'}`} />
+                      <span className={`text-sm font-semibold ${formats[f] ? 'text-foreground' : 'text-foreground'}`}>
+                        {FORMAT_INFO[f].label}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{FORMAT_INFO[f].desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Frame rate */}
-          <div className="animate-fade-in-up delay-2 rounded-2xl border border-border bg-surface p-5">
-            <h3 className="mb-4 font-display text-sm font-semibold text-text-secondary">帧率</h3>
-            <div className="flex gap-2">
-              {FRAME_RATES.map((fr) => (
-                <button
-                  key={fr}
-                  onClick={() => setFrameRate(fr)}
-                  className={`flex-1 rounded-xl border-2 py-2.5 font-mono text-sm transition-all duration-300 transition-cinematic ${
-                    frameRate === fr
-                      ? 'border-amber/40 bg-amber-glow text-amber font-medium'
-                      : 'border-border text-text-muted hover:border-border hover:bg-elevated'
-                  }`}
-                >
-                  {fr}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-text-muted mt-2">不确定？大多数视频使用 30 或 25 帧率</p>
-          </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-muted-foreground">帧率</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RadioGroup
+                value={String(frameRate)}
+                onValueChange={(v) => setFrameRate(parseFloat(v))}
+                className="flex gap-2"
+              >
+                {FRAME_RATES.map((fr) => (
+                  <Label
+                    key={fr}
+                    htmlFor={`fr-${fr}`}
+                    className={`flex flex-1 cursor-pointer items-center justify-center rounded-lg border-2 py-2.5 font-mono text-sm transition-all ${
+                      frameRate === fr
+                        ? 'border-primary bg-primary/5 font-medium text-foreground'
+                        : 'border-border text-muted-foreground hover:bg-accent'
+                    }`}
+                  >
+                    <RadioGroupItem value={String(fr)} id={`fr-${fr}`} className="sr-only" />
+                    {fr}
+                  </Label>
+                ))}
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground mt-2">不确定？大多数视频使用 30 或 25 帧率</p>
+            </CardContent>
+          </Card>
 
           {/* Buffer duration */}
-          <div className="animate-fade-in-up delay-3 rounded-2xl border border-border bg-surface p-5">
-            <div className="mb-4 flex items-baseline justify-between">
-              <h3 className="font-display text-sm font-semibold text-text-secondary">缓冲时长（防误切）</h3>
-              <span className="font-mono text-sm text-amber">{buffer.toFixed(2)}s</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="0.5"
-              step="0.01"
-              value={buffer}
-              onChange={(e) => setBuffer(parseFloat(e.target.value))}
-              className="w-full"
-            />
-            <div className="mt-2 flex justify-between font-mono text-[10px] text-text-faint">
-              <span>0s</span>
-              <span>0.5s</span>
-            </div>
-            <p className="text-xs text-text-muted mt-2">在每段前后保留少量余量，方便后续微调</p>
-          </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-baseline justify-between">
+                <CardTitle className="text-sm font-semibold text-muted-foreground">缓冲时长（防误切）</CardTitle>
+                <span className="font-mono text-sm font-medium text-foreground">{buffer.toFixed(2)}s</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Slider
+                min={0}
+                max={0.5}
+                step={0.01}
+                value={[buffer]}
+                onValueChange={([v]) => setBuffer(v)}
+              />
+              <div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground/50">
+                <span>0s</span>
+                <span>0.5s</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">在每段前后保留少量余量，方便后续微调</p>
+            </CardContent>
+          </Card>
 
           {/* Subtitle source */}
-          <div className="animate-fade-in-up delay-4 rounded-2xl border border-border bg-surface p-5">
-            <h3 className="mb-4 font-display text-sm font-semibold text-text-secondary">字幕文字来源</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {subtitleOptions.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setSubtitleSource(opt.value)}
-                  className={`flex flex-col items-center gap-1 rounded-xl border-2 p-3 text-center transition-all duration-300 transition-cinematic ${
-                    subtitleSource === opt.value
-                      ? 'border-teal/40 bg-teal-glow'
-                      : 'border-border hover:border-border hover:bg-elevated'
-                  }`}
-                >
-                  <span className={`text-sm font-medium ${subtitleSource === opt.value ? 'text-teal' : 'text-text-primary'}`}>
-                    {opt.label}
-                  </span>
-                  <span className="text-[10px] text-text-muted">{opt.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-muted-foreground">字幕文字来源</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RadioGroup
+                value={subtitleSource}
+                onValueChange={(v) => setSubtitleSource(v as ExportRequest['subtitleSource'])}
+                className="grid grid-cols-3 gap-3"
+              >
+                {subtitleOptions.map((opt) => (
+                  <Label
+                    key={opt.value}
+                    htmlFor={`sub-${opt.value}`}
+                    className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 p-3 text-center transition-all ${
+                      subtitleSource === opt.value
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:bg-accent'
+                    }`}
+                  >
+                    <RadioGroupItem value={opt.value} id={`sub-${opt.value}`} className="sr-only" />
+                    <span className={`text-sm font-medium ${subtitleSource === opt.value ? 'text-foreground' : 'text-foreground'}`}>
+                      {opt.label}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">{opt.desc}</span>
+                  </Label>
+                ))}
+              </RadioGroup>
+            </CardContent>
+          </Card>
 
           {/* Video filename - auto-derived, shown as info only */}
           {defaultVideoFilename && (
-            <div className="animate-fade-in-up delay-5 rounded-2xl border border-border bg-surface p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-text-muted">导出后链接的视频文件</span>
-                <span className="font-mono text-xs text-text-secondary">{defaultVideoFilename}</span>
-              </div>
-            </div>
+            <Card>
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Info className="size-3.5" />
+                    导出后链接的视频文件
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{defaultVideoFilename}</span>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Error */}
           {error && (
-            <div className="animate-slide-down rounded-xl border border-danger/20 bg-danger-surface p-4 text-sm text-danger">
-              {error}
-            </div>
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           {/* Export button */}
-          <button
+          <Button
             onClick={handleExport}
             disabled={exporting}
-            className={`w-full rounded-2xl py-3.5 font-display text-base font-semibold tracking-wide transition-all duration-300 transition-cinematic transition-spring ${
-              exporting
-                ? 'bg-elevated text-text-muted cursor-not-allowed'
-                : 'bg-amber text-deep hover:bg-amber/90 hover:shadow-lg hover:shadow-amber/20 active:scale-[0.98]'
-            }`}
+            className="w-full h-11 text-base"
+            size="lg"
           >
             {exporting ? (
               <span className="flex items-center justify-center gap-2.5">
-                <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
+                <Loader2 className="size-5 animate-spin" />
                 导出中...
               </span>
             ) : (
               '导出文件'
             )}
-          </button>
+          </Button>
 
           {/* Download links */}
           {readyFormats.length > 0 && (
-            <div className="animate-slide-down rounded-2xl border border-success/20 bg-success-surface p-5">
-              <h3 className="mb-3 font-display text-sm font-semibold text-success">导出完成</h3>
-              <div className="flex flex-col gap-2">
-                {readyFormats.map((format) => (
-                  <button
-                    key={format}
-                    onClick={() => handleDownload(format)}
-                    disabled={downloading === format}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-text-primary hover:bg-elevated transition-colors transition-smooth disabled:opacity-50"
-                  >
-                    <svg className="h-4 w-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    {downloading === format ? '下载中...' : `下载 ${format.toUpperCase()} 文件`}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <Alert className="border-success/20 bg-success/5">
+              <CheckCircle2 className="size-4 text-success" />
+              <AlertDescription>
+                <h3 className="mb-3 text-sm font-semibold text-success">导出完成</h3>
+                <div className="flex flex-col gap-2">
+                  {readyFormats.map((format) => (
+                    <Button
+                      key={format}
+                      variant="outline"
+                      onClick={() => handleDownload(format)}
+                      disabled={downloading === format}
+                      className="justify-start gap-3"
+                    >
+                      <Download className="size-4 text-success" />
+                      {downloading === format ? '下载中...' : `下载 ${format.toUpperCase()} 文件`}
+                    </Button>
+                  ))}
+                </div>
+              </AlertDescription>
+            </Alert>
           )}
         </div>
       </PageContainer>

@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { addDictionaryEntry } from '../../api/client';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 
 interface TextCorrectionPopoverProps {
   selectedText: string;
@@ -55,49 +59,49 @@ export default function TextCorrectionPopover({
   return (
     <div
       ref={ref}
-      className="fixed z-50 w-72 animate-slide-down rounded-xl border border-border bg-surface p-4 shadow-2xl shadow-black/40"
+      className="fixed z-50 w-72 animate-slide-down rounded-xl border border-border bg-card p-4 shadow-lg"
       style={{
         left: Math.min(position.x, window.innerWidth - 300),
         top: position.y + 8,
       }}
     >
-      <p className="mb-2.5 font-display text-xs font-semibold text-text-muted">修正文字</p>
-      <div className="mb-3 rounded-lg bg-danger-surface px-2.5 py-1.5 text-sm text-danger line-through">
-        {selectedText}
+      <p className="mb-2.5 text-xs font-semibold text-muted-foreground">修正文字</p>
+      <div className="mb-3 rounded-lg bg-danger-light px-2.5 py-1.5">
+        <Badge variant="destructive" className="text-sm line-through">
+          {selectedText}
+        </Badge>
       </div>
-      <input
+      <Input
         ref={inputRef}
         type="text"
         value={correctText}
         onChange={(e) => setCorrectText(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-        placeholder="输入正确文字..."
-        className="mb-2.5 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-amber/50 focus:ring-1 focus:ring-amber/20"
+        placeholder="输入正确文字…"
+        className="mb-2.5"
       />
-      <select
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-        className="mb-3 w-full rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-xs text-text-secondary outline-none focus:border-amber/50"
-      >
-        <option value="general">通用</option>
-        <option value="name">人名</option>
-        <option value="technical">技术术语</option>
-        <option value="brand">品牌</option>
-      </select>
+      <Select value={category} onValueChange={setCategory}>
+        <SelectTrigger className="mb-3 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="general">通用</SelectItem>
+          <SelectItem value="name">人名</SelectItem>
+          <SelectItem value="technical">技术术语</SelectItem>
+          <SelectItem value="brand">品牌</SelectItem>
+        </SelectContent>
+      </Select>
       <div className="flex justify-end gap-2">
-        <button
-          onClick={onClose}
-          className="rounded-lg px-3 py-1.5 text-xs text-text-secondary hover:bg-elevated transition-colors transition-smooth"
-        >
+        <Button variant="ghost" size="sm" onClick={onClose}>
           取消
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
           onClick={handleSave}
           disabled={!correctText.trim() || saving}
-          className="rounded-lg bg-amber px-4 py-1.5 text-xs font-medium text-deep hover:bg-amber/90 disabled:bg-elevated disabled:text-text-muted transition-colors transition-smooth"
         >
-          {saving ? '保存中...' : '保存到词典'}
-        </button>
+          {saving ? '保存中…' : '保存到词典'}
+        </Button>
       </div>
     </div>
   );

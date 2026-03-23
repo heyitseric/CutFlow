@@ -3,6 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import { useJobStore } from '../../stores/jobStore';
 import type { SingleJobState } from '../../stores/jobStore';
 import { getStorageStats } from '../../api/client';
+import { MoreVertical, Pencil, Trash2, Plus, ChevronLeft, ChevronRight, Database, FileText } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 
 // ── Easing tokens (inline style) ──
@@ -70,14 +88,11 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
   const renameJob = useJobStore((s) => s.renameJob);
   const deleteJobAction = useJobStore((s) => s.deleteJobAction);
 
-  const [menuOpen, setMenuOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const nameClickTimerRef = useRef<number | null>(null);
 
-  const menuRef = useRef<HTMLDivElement>(null);
-  const deletePopoverRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function clearPendingNameClick() {
@@ -86,30 +101,6 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
       nameClickTimerRef.current = null;
     }
   }
-
-  // Close menu on outside click
-  useEffect(() => {
-    if (!menuOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [menuOpen]);
-
-  // Close delete popover on outside click
-  useEffect(() => {
-    if (!confirmingDelete) return;
-    function handleClick(e: MouseEvent) {
-      if (deletePopoverRef.current && !deletePopoverRef.current.contains(e.target as Node)) {
-        setConfirmingDelete(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [confirmingDelete]);
 
   // Focus input when renaming starts
   useEffect(() => {
@@ -125,7 +116,6 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
 
   function startRename() {
     clearPendingNameClick();
-    setMenuOpen(false);
     setRenameValue(job.displayName || job.scriptName || '');
     setIsRenaming(true);
   }
@@ -140,11 +130,6 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
 
   function cancelRename() {
     setIsRenaming(false);
-  }
-
-  function startDelete() {
-    setMenuOpen(false);
-    setConfirmingDelete(true);
   }
 
   async function confirmDelete() {
@@ -165,8 +150,8 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
         className={`
           group flex w-full flex-col gap-1 rounded-xl px-3 py-2.5 text-left
           ${isActive
-            ? 'bg-amber-glow/40 ring-1 ring-amber/20'
-            : 'hover:bg-elevated/60'
+            ? 'bg-accent ring-1 ring-border'
+            : 'hover:bg-accent/50'
           }
         `}
         style={{
@@ -188,7 +173,7 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
               }}
               onBlur={commitRename}
               onClick={(e) => e.stopPropagation()}
-              className="flex-1 rounded-md border border-amber/30 bg-deep px-1.5 py-0.5 text-xs font-medium text-text-primary outline-none focus:border-amber/60 focus:ring-1 focus:ring-amber/20"
+              className="flex-1 rounded-md border border-input bg-background px-1.5 py-0.5 text-xs font-medium text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/20"
               style={{
                 transition: `border-color 200ms ${EASE_SMOOTH_OUT}, box-shadow 200ms ${EASE_SMOOTH_OUT}`,
               }}
@@ -197,7 +182,7 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
           ) : (
             <span
               className={`flex-1 truncate text-xs font-medium ${
-                isActive ? 'text-amber' : 'text-text-primary'
+                isActive ? 'text-foreground' : 'text-foreground'
               }`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -220,67 +205,43 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
 
           {/* "..." menu trigger — visible on hover */}
           {!isRenaming && (
-            <div
-              ref={menuRef}
-              className="relative"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen((v) => !v);
-                  setConfirmingDelete(false);
-                }}
-                className="flex h-5 w-5 items-center justify-center rounded-md text-text-faint opacity-0 group-hover:opacity-100 hover:bg-elevated hover:text-text-primary"
-                style={{
-                  transition: `opacity 180ms ${EASE_SMOOTH_OUT}, background-color 150ms ${EASE_SNAPPY}`,
-                }}
-                title="更多操作"
-              >
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-                  <circle cx="12" cy="6" r="1.5" />
-                  <circle cx="12" cy="12" r="1.5" />
-                  <circle cx="12" cy="18" r="1.5" />
-                </svg>
-              </button>
-
-              {/* Context dropdown */}
-              {menuOpen && (
-                <div
-                  className="absolute right-0 top-6 z-50 min-w-[120px] overflow-hidden rounded-lg border border-border-subtle bg-surface shadow-xl"
-                  style={{
-                    animation: `sidebar-dropdown-in 180ms ${EASE_SPRING} forwards`,
-                  }}
-                >
+            <div onClick={(e) => e.stopPropagation()}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <button
+                    className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-foreground"
+                    style={{
+                      transition: `opacity 180ms ${EASE_SMOOTH_OUT}, background-color 150ms ${EASE_SNAPPY}`,
+                    }}
+                    title="更多操作"
+                  >
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[120px]">
+                  <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
                       startRename();
                     }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-secondary hover:bg-elevated hover:text-text-primary"
-                    style={{ transition: `all 120ms ${EASE_SNAPPY}` }}
+                    className="text-xs gap-2"
                   >
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                    </svg>
+                    <Pencil className="h-3.5 w-3.5" />
                     重命名
-                  </button>
-                  <div className="mx-2 border-t border-border-subtle" />
-                  <button
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
-                      startDelete();
+                      setConfirmingDelete(true);
                     }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-danger hover:bg-danger/10"
-                    style={{ transition: `all 120ms ${EASE_SNAPPY}` }}
+                    className="text-xs gap-2 text-destructive focus:text-destructive"
                   >
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                    </svg>
+                    <Trash2 className="h-3.5 w-3.5" />
                     删除
-                  </button>
-                </div>
-              )}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
         </div>
@@ -288,7 +249,7 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
         {/* Bottom row: progress + time */}
         <div className="flex items-center justify-between pl-4">
           {job.status === 'processing' ? (
-            <span className="font-mono text-[10px] text-text-muted">
+            <span className="font-mono text-[10px] text-muted-foreground">
               {safeProgress}%
             </span>
           ) : job.status === 'completed' ? (
@@ -296,16 +257,16 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
           ) : (
             <span className="text-[10px] text-danger">失败</span>
           )}
-          <span className="text-[10px] text-text-faint">
+          <span className="text-[10px] text-muted-foreground/50">
             {relativeTime(job.createdAt)}
           </span>
         </div>
 
         {/* Progress bar for active processing jobs */}
         {job.status === 'processing' && (
-          <div className="ml-4 h-0.5 overflow-hidden rounded-full bg-elevated">
+          <div className="ml-4 h-0.5 overflow-hidden rounded-full bg-muted">
             <div
-              className="h-full rounded-full bg-amber/60"
+              className="h-full rounded-full bg-primary/60"
               style={{
                 width: `${safeProgress}%`,
                 transition: `width 700ms ${EASE_CINEMATIC}`,
@@ -315,36 +276,26 @@ function JobItem({ job, isActive, onSelect }: JobItemProps) {
         )}
       </button>
 
-      {/* Delete confirmation popover */}
-      {confirmingDelete && (
-        <div
-          ref={deletePopoverRef}
-          className="absolute left-2 right-2 top-full z-50 mt-1 rounded-lg border border-danger/30 bg-surface p-3 shadow-xl"
-          style={{
-            animation: `sidebar-popover-in 200ms ${EASE_SPRING} forwards`,
-          }}
-        >
-          <p className="mb-2.5 text-[11px] leading-relaxed text-text-secondary">
-            确定删除此任务及所有文件？
-          </p>
-          <div className="flex items-center justify-end gap-2">
-            <button
-              onClick={() => setConfirmingDelete(false)}
-              className="rounded-md px-2.5 py-1 text-[11px] text-text-muted hover:bg-elevated hover:text-text-primary"
-              style={{ transition: `all 150ms ${EASE_SNAPPY}` }}
-            >
-              取消
-            </button>
-            <button
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定删除此任务及所有文件？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
               onClick={confirmDelete}
-              className="rounded-md bg-danger/15 px-2.5 py-1 text-[11px] font-medium text-danger hover:bg-danger/25"
-              style={{ transition: `all 150ms ${EASE_SNAPPY}` }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               确认删除
-            </button>
-          </div>
-        </div>
-      )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -406,59 +357,23 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Keyframes for dropdown & popover animations */}
-      <style>{`
-        @keyframes sidebar-dropdown-in {
-          from {
-            opacity: 0;
-            transform: scale(0.92) translateY(-4px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-        @keyframes sidebar-popover-in {
-          from {
-            opacity: 0;
-            transform: scale(0.95) translateY(-6px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-        @keyframes sidebar-storage-in {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
-
       {/* Toggle button (visible when sidebar is collapsed) */}
       {!sidebarOpen && (
         <button
           onClick={toggleSidebar}
-          className="fixed left-3 top-[72px] z-40 flex h-8 w-8 items-center justify-center rounded-lg bg-elevated text-text-muted hover:bg-hover hover:text-text-primary"
+          className="fixed left-3 top-[72px] z-40 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
           style={{
             transition: `all 200ms ${EASE_SNAPPY}`,
           }}
           title="展开侧栏"
         >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRight className="h-4 w-4" />
         </button>
       )}
 
       {/* Sidebar panel */}
       <aside
-        className="shrink-0 overflow-hidden border-r border-border-subtle bg-[rgba(255,255,255,0.02)]"
+        className="shrink-0 overflow-hidden border-r border-border bg-card"
         style={{
           width: sidebarOpen ? 260 : 0,
           transition: `width 300ms ${EASE_CINEMATIC}`,
@@ -466,28 +381,24 @@ export default function Sidebar() {
       >
         <div className="flex h-full w-[260px] flex-col">
           {/* Header */}
-          <div className="flex h-14 items-center justify-between border-b border-border-subtle px-4">
-            <span className="font-display text-sm font-semibold text-text-secondary">历史记录</span>
+          <div className="flex h-14 items-center justify-between border-b border-border px-4">
+            <span className="font-display text-sm font-semibold text-muted-foreground">历史记录</span>
             <div className="flex items-center gap-1">
               <button
                 onClick={handleNewJob}
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber/15 text-amber hover:bg-amber/25"
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-foreground hover:bg-primary/20"
                 style={{ transition: `all 180ms ${EASE_SPRING}` }}
                 title="新建任务"
               >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" d="M12 5v14M5 12h14" />
-                </svg>
+                <Plus className="h-4 w-4" />
               </button>
               <button
                 onClick={toggleSidebar}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:bg-elevated hover:text-text-primary"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
                 style={{ transition: `all 180ms ${EASE_SNAPPY}` }}
                 title="收起侧栏"
               >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
+                <ChevronLeft className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -496,13 +407,11 @@ export default function Sidebar() {
           <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
             {sortedJobs.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-elevated text-text-muted">
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                  </svg>
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                  <FileText className="h-5 w-5" />
                 </div>
-                <p className="text-xs text-text-muted">暂无任务</p>
-                <p className="mt-1 text-[10px] text-text-faint">点击 + 开始新任务</p>
+                <p className="text-xs text-muted-foreground">暂无任务</p>
+                <p className="mt-1 text-[10px] text-muted-foreground/50">点击 + 开始新任务</p>
               </div>
             ) : (
               <div className="flex flex-col gap-0.5">
@@ -520,32 +429,24 @@ export default function Sidebar() {
 
           {/* Storage indicator (bottom) */}
           {storageDisplay !== null && (
-            <div
-              className="border-t border-border-subtle px-4 py-2.5"
-              style={{
-                animation: `sidebar-storage-in 350ms ${EASE_SMOOTH_OUT} forwards`,
-              }}
-            >
+            <div className="border-t border-border px-4 py-2.5">
               <button
                 onClick={() => navigate('/storage')}
-                className="group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-elevated/60"
+                className="group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-accent/50"
                 style={{ transition: `all 180ms ${EASE_SNAPPY}` }}
               >
-                <svg
-                  className="h-3.5 w-3.5 shrink-0 text-text-faint group-hover:text-amber"
+                <Database
+                  className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 group-hover:text-foreground"
                   style={{ transition: `color 200ms ${EASE_SMOOTH_OUT}` }}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
+                />
+                <span
+                  className="text-[11px] text-muted-foreground/50 group-hover:text-muted-foreground"
+                  style={{ transition: `color 200ms ${EASE_SMOOTH_OUT}` }}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-                </svg>
-                <span className="text-[11px] text-text-faint group-hover:text-text-secondary" style={{ transition: `color 200ms ${EASE_SMOOTH_OUT}` }}>
                   已用存储
                 </span>
                 <span
-                  className="ml-auto font-mono text-[11px] text-text-muted group-hover:text-amber"
+                  className="ml-auto font-mono text-[11px] text-muted-foreground group-hover:text-foreground"
                   style={{ transition: `color 200ms ${EASE_SMOOTH_OUT}` }}
                 >
                   {storageDisplay}

@@ -1,53 +1,28 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource/geist-sans/400.css";
+@import "@fontsource/geist-sans/500.css";
+@import "@fontsource/geist-sans/600.css";
+@import "@fontsource/geist-sans/700.css";
+@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/geist-mono/500.css";
+@import "@fontsource/noto-sans-sc/400.css";
+@import "@fontsource/noto-sans-sc/500.css";
+@import "@fontsource/noto-sans-sc/700.css";
+@custom-variant dark (&:is(.dark *));
 
 /* ═══════════════════════════════════════════
-   DIGITAL FILM LAB — Design System
-   A cinematic dark interface for video editing
+   CutFlow — Mono Light Design System
+   Clean, professional tool interface
    ═══════════════════════════════════════════ */
 
 @theme {
-  /* ── Core Palette ── */
-  --color-deep: #08080d;
-  --color-base: #0e0e16;
-  --color-surface: #16161f;
-  --color-elevated: #1e1e2a;
-  --color-panel: #252535;
-  --color-hover: #2c2c40;
-  --color-border: #2a2a3c;
-  --color-border-subtle: #1f1f2e;
-
-  /* ── Accent Colors ── */
-  --color-amber: #e8a838;
-  --color-amber-dim: #b8842a;
-  --color-amber-glow: rgba(232, 168, 56, 0.15);
-  --color-teal: #38bdf8;
-  --color-teal-dim: #2196d4;
-  --color-teal-glow: rgba(56, 189, 248, 0.12);
-
-  /* ── Semantic Colors ── */
-  --color-success: #34d399;
-  --color-success-dim: #059669;
-  --color-success-surface: rgba(52, 211, 153, 0.08);
-  --color-warning: #fbbf24;
-  --color-warning-dim: #d97706;
-  --color-warning-surface: rgba(251, 191, 36, 0.08);
-  --color-danger: #f87171;
-  --color-danger-dim: #dc2626;
-  --color-danger-surface: rgba(248, 113, 113, 0.08);
-  --color-purple: #a78bfa;
-  --color-purple-dim: #7c3aed;
-  --color-purple-surface: rgba(167, 139, 250, 0.08);
-
-  /* ── Text Colors ── */
-  --color-text-primary: #edeae2;
-  --color-text-secondary: #9794a8;
-  --color-text-muted: #5d5a70;
-  --color-text-faint: #3d3a4e;
-
   /* ── Typography ── */
-  --font-display: "Bricolage Grotesque", "Noto Sans SC", system-ui, sans-serif;
-  --font-body: "Noto Sans SC", "Bricolage Grotesque", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Geist Sans", "Noto Sans SC", system-ui, sans-serif;
+  --font-display: "Geist Sans", "Noto Sans SC", system-ui, sans-serif;
+  --font-body: "Noto Sans SC", "Geist Sans", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
 
   /* ── Motion Curves (non-linear easing) ── */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -57,39 +32,44 @@
   --ease-bounce: cubic-bezier(0.34, 1.4, 0.64, 1);
   --ease-snappy: cubic-bezier(0.2, 0, 0, 1);
   --ease-cinematic: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* ── Semantic accent (used sparingly) ── */
+  --color-amber: #f59e0b;
+  --color-amber-dim: #d97706;
+  --color-amber-light: rgba(245, 158, 11, 0.1);
+  --color-success: #22c55e;
+  --color-success-dim: #16a34a;
+  --color-success-light: rgba(34, 197, 94, 0.08);
+  --color-warning: #eab308;
+  --color-warning-dim: #ca8a04;
+  --color-warning-light: rgba(234, 179, 8, 0.08);
+  --color-danger: #ef4444;
+  --color-danger-dim: #dc2626;
+  --color-danger-light: rgba(239, 68, 68, 0.08);
+  --color-purple: #8b5cf6;
+  --color-purple-dim: #7c3aed;
+  --color-purple-light: rgba(139, 92, 246, 0.08);
 }
 
 /* ── Base Styles ── */
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-panel) transparent;
+  scrollbar-color: #d4d4d8 transparent;
 }
 
 ::selection {
-  background: var(--color-amber-glow);
-  color: var(--color-amber);
+  background: rgba(24, 24, 27, 0.12);
+  color: #09090b;
 }
 
 body {
   font-family: var(--font-body);
-  background-color: var(--color-deep);
-  color: var(--color-text-primary);
+  background-color: #ffffff;
+  color: #09090b;
+  color-scheme: light;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* ── Film Grain Overlay ── */
-
-#root::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.025;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
-  background-size: 256px 256px;
 }
 
 /* ── Animations ── */
@@ -113,11 +93,6 @@ body {
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
-}
-
-@keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 0 0 var(--color-amber-glow); }
-  50% { box-shadow: 0 0 20px 4px var(--color-amber-glow); }
 }
 
 @keyframes gentlePulse {
@@ -184,10 +159,6 @@ body {
   animation: slideRight 0.25s var(--ease-smooth-out) both;
 }
 
-.animate-pulse-glow {
-  animation: pulseGlow 2s var(--ease-cinematic) infinite;
-}
-
 .animate-gentle-pulse {
   animation: gentlePulse 2s var(--ease-smooth-in-out) infinite;
 }
@@ -217,36 +188,16 @@ body {
 .delay-5 { animation-delay: 0.25s; }
 .delay-6 { animation-delay: 0.3s; }
 
-/* ── Custom Range Slider ── */
-
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-  height: 24px;
-}
-
-input[type="range"]::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--color-panel);
-}
-
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--color-amber);
-  margin-top: -6px;
-  box-shadow: 0 0 8px var(--color-amber-glow);
-  transition: transform 0.15s var(--ease-spring);
-}
-
-input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+/* Respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up,
+  .animate-fade-in,
+  .animate-slide-down,
+  .animate-scale-in,
+  .animate-slide-right,
+  .animate-gentle-pulse {
+    animation: none;
+  }
 }
 
 /* ── Custom Scrollbar (Webkit) ── */
@@ -261,39 +212,20 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-panel);
+  background: #d4d4d8;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-hover);
+  background: #a1a1aa;
 }
 
 /* ── Focus Ring ── */
 
 *:focus-visible {
-  outline: 2px solid var(--color-amber);
+  outline: 2px solid #18181b;
   outline-offset: 2px;
   border-radius: 4px;
-}
-
-/* ── Gradient Mesh Background ── */
-
-.bg-mesh {
-  background:
-    radial-gradient(ellipse at 20% 50%, rgba(232, 168, 56, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(56, 189, 248, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(167, 139, 250, 0.02) 0%, transparent 50%),
-    var(--color-deep);
-}
-
-/* ── Glass Panel ── */
-
-.glass-panel {
-  background: rgba(22, 22, 31, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--color-border-subtle);
 }
 
 /* ── Progress Stripe ── */
@@ -301,14 +233,99 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .progress-stripe {
   background-image: linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.06) 25%,
+    rgba(0, 0, 0, 0.04) 25%,
     transparent 25%,
     transparent 50%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(255, 255, 255, 0.06) 75%,
+    rgba(0, 0, 0, 0.04) 50%,
+    rgba(0, 0, 0, 0.04) 75%,
     transparent 75%,
     transparent
   );
   background-size: 40px 40px;
   animation: progressStripe 1s linear infinite;
+}
+
+@theme inline {
+  --font-heading: var(--font-display);
+  --font-sans: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ── shadcn/ui tokens — Mono Light (zinc-based) ── */
+:root {
+  --background: #ffffff;
+  --foreground: #09090b;
+  --card: #fafafa;
+  --card-foreground: #09090b;
+  --popover: #ffffff;
+  --popover-foreground: #09090b;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --destructive: #ef4444;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #18181b;
+  --chart-1: #18181b;
+  --chart-2: #71717a;
+  --chart-3: #a1a1aa;
+  --chart-4: #d4d4d8;
+  --chart-5: #f4f4f5;
+  --radius: 0.5rem;
+  --sidebar: #fafafa;
+  --sidebar-foreground: #09090b;
+  --sidebar-primary: #18181b;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #f4f4f5;
+  --sidebar-accent-foreground: #18181b;
+  --sidebar-border: #e4e4e7;
+  --sidebar-ring: #18181b;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
 }

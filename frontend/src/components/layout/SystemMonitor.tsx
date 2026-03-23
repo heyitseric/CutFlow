@@ -15,7 +15,7 @@ interface SystemStats {
 function textColor(pct: number): string {
   if (pct >= 80) return 'text-danger';
   if (pct >= 50) return 'text-warning';
-  return 'text-text-muted';
+  return 'text-muted-foreground';
 }
 
 export default function SystemMonitor() {
@@ -45,8 +45,8 @@ export default function SystemMonitor() {
 
   if (!stats) {
     return (
-      <div className="fixed bottom-3 right-3 z-50 rounded-lg bg-surface/90 backdrop-blur border border-border-subtle px-3 py-1.5 shadow-lg">
-        <span className="font-mono text-[10px] text-text-faint">系统监控加载中...</span>
+      <div className="fixed bottom-3 right-3 z-50 rounded-lg border border-border bg-card px-3 py-1.5 shadow-sm">
+        <span className="font-mono text-[10px] text-muted-foreground">系统监控加载中…</span>
       </div>
     );
   }
@@ -56,24 +56,24 @@ export default function SystemMonitor() {
   const gpuPct = stats.gpu_percent != null ? Math.round(stats.gpu_percent) : null;
 
   return (
-    <div className="fixed bottom-3 right-3 z-50 flex items-center gap-3 rounded-lg bg-surface/90 backdrop-blur border border-border-subtle px-3 py-1.5 shadow-lg">
-      <span className="font-mono text-[10px] text-text-faint">CPU</span>
-      <span className={`font-mono text-[10px] ${textColor(cpuPct)}`}>{cpuPct}%</span>
+    <div className="fixed bottom-3 right-3 z-50 flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-1.5 shadow-sm">
+      <span className="font-mono text-[10px] text-muted-foreground">CPU</span>
+      <span className={`font-mono text-[10px] tabular-nums ${textColor(cpuPct)}`}>{cpuPct}%</span>
 
-      <span className="text-border-subtle">|</span>
+      <span className="text-border">|</span>
 
-      <span className="font-mono text-[10px] text-text-faint">RAM</span>
-      <span className={`font-mono text-[10px] ${textColor(memPct)}`}>
+      <span className="font-mono text-[10px] text-muted-foreground">RAM</span>
+      <span className={`font-mono text-[10px] tabular-nums ${textColor(memPct)}`}>
         {stats.memory_used_gb}/{stats.memory_total_gb}G
       </span>
 
-      <span className="text-border-subtle">|</span>
+      <span className="text-border">|</span>
 
-      <span className="font-mono text-[10px] text-text-faint">GPU</span>
+      <span className="font-mono text-[10px] text-muted-foreground">GPU</span>
       {gpuPct != null ? (
-        <span className={`font-mono text-[10px] ${textColor(gpuPct)}`}>{gpuPct}%</span>
+        <span className={`font-mono text-[10px] tabular-nums ${textColor(gpuPct)}`}>{gpuPct}%</span>
       ) : (
-        <span className="font-mono text-[10px] text-text-faint">N/A</span>
+        <span className="font-mono text-[10px] text-muted-foreground">N/A</span>
       )}
     </div>
   );

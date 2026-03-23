@@ -1,10 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Check, Loader2, Circle, CheckCircle2, ChevronRight, AlertTriangle } from 'lucide-react';
 import PageContainer from '../components/layout/PageContainer';
 import Stepper from '../components/layout/Stepper';
 import { useJob } from '../hooks/useJob';
 import { useJobStore, useActiveJob } from '../stores/jobStore';
 import { getJob } from '../api/client';
+import { Progress } from '@/components/ui/progress';
+import { Card, CardContent } from '@/components/ui/card';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 
 // ── Sub-task types ──
 
@@ -184,50 +189,6 @@ function safePercent(progress: number): number {
   return Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
 }
 
-// ── Sub-task status icon components ──
-
-function SubTaskCheckIcon() {
-  return (
-    <svg className="h-3.5 w-3.5 text-success shrink-0" viewBox="0 0 20 20" fill="currentColor">
-      <path
-        fillRule="evenodd"
-        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function SubTaskSpinnerIcon() {
-  return (
-    <div className="h-3 w-3 rounded-full border-[1.5px] border-amber border-t-transparent animate-spin shrink-0" />
-  );
-}
-
-function SubTaskPendingIcon() {
-  return (
-    <div className="h-2 w-2 rounded-full bg-text-faint shrink-0" />
-  );
-}
-
-// ── Chevron icon ──
-
-function ChevronIcon({ expanded }: { expanded: boolean }) {
-  return (
-    <svg
-      className={`h-3.5 w-3.5 text-text-faint transition-transform duration-300 transition-spring ${expanded ? 'rotate-90' : ''}`}
-      viewBox="0 0 20 20"
-      fill="currentColor"
-    >
-      <path
-        fillRule="evenodd"
-        d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
 // ── Component ──
 
 export default function ProcessingPage() {
@@ -317,12 +278,12 @@ export default function ProcessingPage() {
                 const subtaskStatuses = resolveSubTaskStatuses(stage.id, stageStatus, stageProgress?.sub_tasks, stageSubtasks);
 
                 return (
-                  <li key={stage.id} className="transition-all duration-500 transition-cinematic">
+                  <li key={stage.id} className="transition-all duration-500">
                     {/* Main stage row */}
                     <div
                       className={`
-                        flex items-start gap-3 rounded-xl px-4 py-3 transition-all duration-500 transition-cinematic
-                        ${isActive ? 'bg-amber-glow/40' : ''}
+                        flex items-start gap-3 rounded-xl px-4 py-3 transition-all duration-300
+                        ${isActive ? 'bg-accent' : ''}
                         ${hasSubtasks ? 'cursor-pointer select-none' : ''}
                       `}
                       onClick={hasSubtasks ? () => toggleStage(stage.id) : undefined}
@@ -330,23 +291,13 @@ export default function ProcessingPage() {
                       {/* Status icon */}
                       <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
                         {isDone && (
-                          <svg
-                            className="h-5 w-5 text-success animate-fade-in"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
+                          <Check className="h-5 w-5 text-success animate-fade-in" />
                         )}
                         {isActive && (
-                          <div className="h-4 w-4 rounded-full border-2 border-amber border-t-transparent animate-spin" />
+                          <Loader2 className="h-4 w-4 text-foreground animate-spin" />
                         )}
                         {isPending && (
-                          <div className="h-3 w-3 rounded-full bg-text-faint" />
+                          <Circle className="h-3 w-3 text-muted-foreground/50" />
                         )}
                       </div>
 
@@ -354,16 +305,16 @@ export default function ProcessingPage() {
                       <div className="min-w-0 flex-1">
                         <span
                           className={`
-                            font-display text-sm font-medium transition-colors duration-300 transition-smooth
-                            ${isDone ? 'text-text-secondary' : ''}
-                            ${isActive ? 'text-amber' : ''}
-                            ${isPending ? 'text-text-muted' : ''}
+                            text-sm font-medium transition-colors duration-300
+                            ${isDone ? 'text-muted-foreground' : ''}
+                            ${isActive ? 'text-foreground font-semibold' : ''}
+                            ${isPending ? 'text-muted-foreground' : ''}
                           `}
                         >
                           {stage.name}
                         </span>
                         {isActive && stageDetail && !isExpanded && (
-                          <p className="mt-0.5 text-xs text-text-muted animate-fade-in truncate">
+                          <p className="mt-0.5 text-xs text-muted-foreground animate-fade-in truncate">
                             {stageDetail}
                           </p>
                         )}
@@ -372,14 +323,16 @@ export default function ProcessingPage() {
                       {/* Chevron */}
                       {hasSubtasks && (
                         <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center">
-                          <ChevronIcon expanded={isExpanded} />
+                          <ChevronRight
+                            className={`h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`}
+                          />
                         </div>
                       )}
                     </div>
 
                     {/* Expandable sub-tasks */}
                     <div
-                      className="overflow-hidden transition-all duration-300 transition-cinematic"
+                      className="overflow-hidden transition-all duration-300"
                       style={{
                         maxHeight: isExpanded ? `${subtasks.length * 36 + 8}px` : '0px',
                         opacity: isExpanded ? 1 : 0,
@@ -398,26 +351,26 @@ export default function ProcessingPage() {
                             >
                               {/* Tree connector */}
                               <span
-                                className="text-xs font-mono select-none shrink-0"
-                                style={{ color: 'rgba(255,255,255,0.15)', width: '1rem' }}
+                                className="text-xs font-mono select-none shrink-0 text-border"
+                                style={{ width: '1rem' }}
                               >
                                 {connector}
                               </span>
 
                               {/* Sub-task status icon */}
                               <div className="flex h-4 w-4 items-center justify-center shrink-0">
-                                {stStatus === 'completed' && <SubTaskCheckIcon />}
-                                {stStatus === 'active' && <SubTaskSpinnerIcon />}
-                                {stStatus === 'pending' && <SubTaskPendingIcon />}
+                                {stStatus === 'completed' && <Check className="h-3.5 w-3.5 text-success" />}
+                                {stStatus === 'active' && <Loader2 className="h-3 w-3 text-foreground animate-spin" />}
+                                {stStatus === 'pending' && <Circle className="h-2 w-2 text-muted-foreground/50" />}
                               </div>
 
                               {/* Sub-task label */}
                               <span
                                 className={`
-                                  text-xs transition-colors duration-300 transition-smooth
-                                  ${stStatus === 'completed' ? 'text-text-secondary/70' : ''}
-                                  ${stStatus === 'active' ? 'text-text-secondary' : ''}
-                                  ${stStatus === 'pending' ? 'text-text-muted/50' : ''}
+                                  text-xs transition-colors duration-300
+                                  ${stStatus === 'completed' ? 'text-muted-foreground/70' : ''}
+                                  ${stStatus === 'active' ? 'text-foreground' : ''}
+                                  ${stStatus === 'pending' ? 'text-muted-foreground/50' : ''}
                                 `}
                               >
                                 {subtask.label}
@@ -425,7 +378,7 @@ export default function ProcessingPage() {
 
                               {/* Show detail text next to active sub-task */}
                               {stStatus === 'active' && isActive && stageDetail && (
-                                <span className="text-[11px] text-text-muted truncate ml-1 animate-fade-in">
+                                <span className="text-[11px] text-muted-foreground truncate ml-1 animate-fade-in">
                                   {stageDetail}
                                 </span>
                               )}
@@ -442,18 +395,14 @@ export default function ProcessingPage() {
 
           {/* ── Progress bar ── */}
           <div className="w-full max-w-md">
-            <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
-              <div
-                className={`h-full rounded-full transition-all duration-700 transition-smooth ${
-                  isFailed ? 'bg-danger' : isComplete ? 'bg-success' : 'bg-amber progress-stripe'
-                }`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
+            <Progress
+              value={pct}
+              className={`h-1.5 ${isFailed ? '[&>[data-slot=progress-indicator]]:bg-danger' : isComplete ? '[&>[data-slot=progress-indicator]]:bg-success' : ''}`}
+            />
 
             {/* Percentage — show "准备中..." when 0 and not yet started */}
             <div className="mt-2 text-center">
-              <span className="font-mono text-xs text-text-muted">
+              <span className="font-mono text-xs text-muted-foreground">
                 {pct === 0 && !isComplete && !isFailed ? '正在启动处理流程...' : `${pct}%`}
               </span>
             </div>
@@ -461,10 +410,10 @@ export default function ProcessingPage() {
             {/* Time info */}
             {!isComplete && !isFailed && (
               <div className="mt-1 flex justify-between">
-                <span className="font-mono text-[11px] text-text-muted">
+                <span className="font-mono text-[11px] text-muted-foreground">
                   已耗时: {formatElapsed(elapsed)}
                 </span>
-                <span className="font-mono text-[11px] text-text-muted">
+                <span className="font-mono text-[11px] text-muted-foreground">
                   预计剩余: {formatRemaining(estimatedRemaining)}
                 </span>
               </div>
@@ -473,28 +422,35 @@ export default function ProcessingPage() {
 
           {/* ── Error state ── */}
           {error && (
-            <div className="max-w-md animate-slide-down rounded-2xl border border-danger/20 bg-danger-surface p-5">
-              <p className="font-display text-sm font-semibold text-danger">处理出错</p>
-              <p className="mt-2 text-sm text-text-secondary">{error}</p>
-              <button
-                onClick={() => navigate('/')}
-                className="mt-4 rounded-xl bg-danger/10 px-5 py-2 text-sm font-medium text-danger hover:bg-danger/20 transition-colors transition-smooth"
-              >
-                重新上传
-              </button>
-            </div>
+            <Card className="max-w-md animate-slide-down border-danger/20">
+              <CardContent>
+                <Alert variant="destructive" className="border-0 p-0">
+                  <AlertTriangle className="size-4" />
+                  <AlertTitle>处理出错</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => navigate('/')}
+                  className="mt-4"
+                >
+                  重新上传
+                </Button>
+              </CardContent>
+            </Card>
           )}
 
           {/* ── Completed state ── */}
           {isComplete && (
-            <div className="animate-slide-down rounded-2xl border border-success/20 bg-success-surface p-5 text-center">
-              <div className="flex items-center justify-center gap-2 text-sm text-success">
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                处理完成！正在进入审核页面...
-              </div>
-            </div>
+            <Card className="animate-slide-down border-success/20">
+              <CardContent>
+                <div className="flex items-center justify-center gap-2 text-sm text-success">
+                  <CheckCircle2 className="h-5 w-5" />
+                  处理完成！正在进入审核页面...
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       </PageContainer>

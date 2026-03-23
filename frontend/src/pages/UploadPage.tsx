@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Upload, Cloud, Monitor, FileText, AlertTriangle, Loader2 } from 'lucide-react';
 import PageContainer from '../components/layout/PageContainer';
 import Stepper from '../components/layout/Stepper';
 import FileDropZone from '../components/upload/FileDropZone';
 import { uploadJob, getHealthStatus } from '../api/client';
 import { useJobStore } from '../stores/jobStore';
+import { Alert, AlertTitle, AlertDescription, AlertAction } from '@/components/ui/alert';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 export default function UploadPage() {
   const navigate = useNavigate();
@@ -59,35 +64,26 @@ export default function UploadPage() {
       <PageContainer>
         {/* Cloud config banner */}
         {showConfigBanner && (
-          <div className="mb-6 animate-fade-in-up rounded-xl border border-amber/15 bg-amber/[0.04] px-5 py-4">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber/10">
-                <svg className="h-3.5 w-3.5 text-amber" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17l-5.1-5.1m0 0L12 4.37m-5.68 5.7h11.8M4.26 19.72A9.965 9.965 0 0112 2c5.523 0 10 4.477 10 10a9.965 9.965 0 01-7.74 9.72" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-amber/90">尚未配置云端服务</p>
-                <p className="mt-1 text-xs text-text-muted leading-relaxed">
-                  前往「服务配置」填写 API 密钥以启用云端匹配和转录功能，获得更快速度和更高准确率。当前将使用本地模型处理。
-                </p>
-              </div>
-              <Link
-                to="/settings"
-                className="shrink-0 rounded-lg bg-amber/10 px-3.5 py-2 text-xs font-medium text-amber hover:bg-amber/20 transition-colors"
-              >
-                前往配置 &rarr;
-              </Link>
-            </div>
-          </div>
+          <Alert className="mb-6 animate-fade-in-up">
+            <AlertTriangle className="size-4 text-warning" />
+            <AlertTitle>尚未配置云端服务</AlertTitle>
+            <AlertDescription>
+              前往「服务配置」填写 API 密钥以启用云端匹配和转录功能，获得更快速度和更高准确率。当前将使用本地模型处理。
+            </AlertDescription>
+            <AlertAction>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/settings">前往配置 &rarr;</Link>
+              </Button>
+            </AlertAction>
+          </Alert>
         )}
 
         {/* Hero heading */}
         <div className="mb-10 text-center animate-fade-in-up">
-          <h1 className="font-display text-3xl font-bold tracking-tight text-text-primary">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
             上传文件
           </h1>
-          <p className="mt-3 text-sm text-text-secondary">
+          <p className="mt-3 text-sm text-muted-foreground">
             上传编导脚本和音频文件，开始智能粗剪
           </p>
         </div>
@@ -99,11 +95,7 @@ export default function UploadPage() {
             label="脚本文件（.md / .txt）"
             file={scriptFile}
             onFile={handleScriptFile}
-            icon={
-              <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-              </svg>
-            }
+            icon={<FileText className="h-7 w-7" />}
           />
 
           <FileDropZone
@@ -111,134 +103,112 @@ export default function UploadPage() {
             label="音频文件（.mp3 / .wav / .m4a）"
             file={audioFile}
             onFile={setAudioFile}
-            icon={
-              <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
-              </svg>
-            }
+            icon={<Upload className="h-7 w-7" />}
           />
         </div>
 
         {/* Script preview */}
         {scriptPreview && (
-          <div className="mt-6 animate-slide-down rounded-2xl border border-border bg-surface p-5">
-            <h3 className="mb-3 font-display text-sm font-semibold text-text-secondary">脚本预览</h3>
-            <div className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg bg-base p-4 text-sm text-text-secondary leading-relaxed">
-              {scriptPreview}
-            </div>
-          </div>
+          <Card className="mt-6 animate-slide-down">
+            <CardContent>
+              <h3 className="mb-3 text-sm font-semibold text-muted-foreground">脚本预览</h3>
+              <div className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-sm text-muted-foreground leading-relaxed">
+                {scriptPreview}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Provider selection */}
-        <div className="mt-6 animate-fade-in-up delay-2 rounded-2xl border border-border bg-surface p-5">
-          <h3 className="mb-4 font-display text-sm font-semibold text-text-secondary">转录引擎</h3>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label
-              className={`group flex cursor-pointer items-center gap-4 rounded-xl border-2 p-4 transition-all duration-300 transition-cinematic ${
-                provider === 'cloud'
-                  ? 'border-amber/40 bg-amber-glow'
-                  : 'border-border hover:border-border hover:bg-elevated'
-              }`}
+        <Card className="mt-6 animate-fade-in-up delay-2">
+          <CardContent>
+            <h3 className="mb-4 text-sm font-semibold text-muted-foreground">转录引擎</h3>
+            <RadioGroup
+              value={provider}
+              onValueChange={(val) => setProvider(val as 'local' | 'cloud')}
+              className="grid gap-4 md:grid-cols-2"
             >
-              <input
-                type="radio"
-                name="provider"
-                value="cloud"
-                checked={provider === 'cloud'}
-                onChange={() => setProvider('cloud')}
-                className="sr-only"
-              />
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors transition-smooth ${
-                provider === 'cloud' ? 'bg-amber/15 text-amber' : 'bg-elevated text-text-muted'
-              }`}>
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
-                </svg>
-              </div>
-              <div>
-                <p className={`text-sm font-medium transition-colors transition-smooth ${provider === 'cloud' ? 'text-amber' : 'text-text-primary'}`}>
-                  云端模型（Seed 2.0 Lite）
-                </p>
-                <p className="mt-0.5 text-xs text-text-muted">速度快，精度高，需要网络</p>
-              </div>
-              {provider === 'cloud' && (
-                <div className="ml-auto h-2 w-2 rounded-full bg-amber animate-gentle-pulse" />
-              )}
-            </label>
+              <label
+                className={`group flex cursor-pointer items-center gap-4 rounded-xl border p-4 transition-all duration-200 ${
+                  provider === 'cloud'
+                    ? 'border-border bg-accent shadow-sm'
+                    : 'border-border/50 hover:border-border hover:bg-accent/50'
+                }`}
+              >
+                <RadioGroupItem value="cloud" className="sr-only" />
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
+                  provider === 'cloud' ? 'bg-primary/10 text-foreground' : 'bg-muted text-muted-foreground'
+                }`}>
+                  <Cloud className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <p className={`text-sm font-medium transition-colors ${provider === 'cloud' ? 'text-foreground font-semibold' : 'text-foreground'}`}>
+                    云端模型（Seed 2.0 Lite）
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">速度快，精度高，需要网络</p>
+                </div>
+                {provider === 'cloud' && (
+                  <div className="ml-auto h-2 w-2 rounded-full bg-primary animate-pulse" />
+                )}
+              </label>
 
-            <label
-              className={`group flex cursor-pointer items-center gap-4 rounded-xl border-2 p-4 transition-all duration-300 transition-cinematic ${
-                provider === 'local'
-                  ? 'border-teal/40 bg-teal-glow'
-                  : 'border-border hover:border-border hover:bg-elevated'
-              }`}
-            >
-              <input
-                type="radio"
-                name="provider"
-                value="local"
-                checked={provider === 'local'}
-                onChange={() => setProvider('local')}
-                className="sr-only"
-              />
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors transition-smooth ${
-                provider === 'local' ? 'bg-teal/15 text-teal' : 'bg-elevated text-text-muted'
-              }`}>
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
-                </svg>
-              </div>
-              <div>
-                <p className={`text-sm font-medium transition-colors transition-smooth ${provider === 'local' ? 'text-teal' : 'text-text-primary'}`}>
-                  本地模型
-                </p>
-                <p className="mt-0.5 text-xs text-text-muted">离线可用，速度取决于硬件</p>
-              </div>
-              {provider === 'local' && (
-                <div className="ml-auto h-2 w-2 rounded-full bg-teal animate-gentle-pulse" />
-              )}
-            </label>
-          </div>
-          <p className="mt-3 text-xs text-text-muted">推荐使用云端模型，速度更快且精度更高</p>
-        </div>
+              <label
+                className={`group flex cursor-pointer items-center gap-4 rounded-xl border p-4 transition-all duration-200 ${
+                  provider === 'local'
+                    ? 'border-border bg-accent shadow-sm'
+                    : 'border-border/50 hover:border-border hover:bg-accent/50'
+                }`}
+              >
+                <RadioGroupItem value="local" className="sr-only" />
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
+                  provider === 'local' ? 'bg-primary/10 text-foreground' : 'bg-muted text-muted-foreground'
+                }`}>
+                  <Monitor className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <p className={`text-sm font-medium transition-colors ${provider === 'local' ? 'text-foreground font-semibold' : 'text-foreground'}`}>
+                    本地模型
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">离线可用，速度取决于硬件</p>
+                </div>
+                {provider === 'local' && (
+                  <div className="ml-auto h-2 w-2 rounded-full bg-primary animate-pulse" />
+                )}
+              </label>
+            </RadioGroup>
+            <p className="mt-3 text-xs text-muted-foreground">推荐使用云端模型，速度更快且精度更高</p>
+          </CardContent>
+        </Card>
 
         {/* Error message */}
         {error && (
-          <div className="mt-4 animate-slide-down rounded-xl border border-danger/20 bg-danger-surface p-4 text-sm text-danger">
-            {error}
-          </div>
+          <Alert variant="destructive" className="mt-4 animate-slide-down">
+            <AlertTriangle className="size-4" />
+            <AlertTitle>上传失败</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* Start button */}
         <div className="mt-10 flex justify-center animate-fade-in-up delay-3">
-          <button
+          <Button
             onClick={handleStart}
             disabled={!scriptFile || !audioFile || uploading}
-            className={`
-              group relative overflow-hidden rounded-2xl px-12 py-3.5
-              font-display text-base font-semibold tracking-wide
-              transition-all duration-300 transition-cinematic transition-spring
-              ${!scriptFile || !audioFile || uploading
-                ? 'bg-elevated text-text-muted cursor-not-allowed'
-                : 'bg-amber text-deep hover:bg-amber/90 hover:shadow-lg hover:shadow-amber/20 active:scale-[0.98]'
-              }
-            `}
+            size="lg"
+            className="px-12 py-3.5 text-base font-semibold tracking-wide rounded-2xl h-auto"
           >
             {uploading ? (
               <span className="flex items-center gap-2.5">
-                <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
+                <Loader2 className="h-5 w-5 animate-spin" />
                 上传中...
               </span>
             ) : (
               <>
                 开始处理
-                <span className="ml-2 inline-block transition-transform transition-spring group-hover:translate-x-1">→</span>
+                <span className="ml-2 inline-block transition-transform group-hover/button:translate-x-1">&rarr;</span>
               </>
             )}
-          </button>
+          </Button>
         </div>
       </PageContainer>
     </>

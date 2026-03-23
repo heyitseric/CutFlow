@@ -8,6 +8,28 @@ import {
   exportDictionary,
 } from '../api/client';
 import type { DictionaryEntry, DictionaryData } from '../api/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Search, Upload, Download, Plus, Trash2, X, AlertCircle } from 'lucide-react';
 
 export default function DictionaryPage() {
   const [entries, setEntries] = useState<DictionaryEntry[]>([]);
@@ -103,34 +125,32 @@ export default function DictionaryPage() {
 
   return (
     <PageContainer>
-      <div className="mb-8 animate-fade-in-up">
-        <h1 className="font-display text-2xl font-bold tracking-tight text-text-primary">词典管理</h1>
-        <p className="mt-2 text-sm text-text-muted">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">词典管理</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
           管理转录纠错词典，提高后续转录精度
         </p>
       </div>
 
       {/* Actions bar */}
-      <div className="mb-5 flex items-center gap-3 animate-fade-in-up delay-1">
+      <div className="mb-5 flex items-center gap-3">
         <div className="relative flex-1">
-          <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <path strokeLinecap="round" d="m21 21-4.35-4.35" />
-          </svg>
-          <input
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索词条..."
-            className="w-full rounded-xl border border-border bg-surface pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-amber/40 focus:ring-1 focus:ring-amber/20 transition-colors transition-smooth"
+            className="pl-10"
           />
         </div>
-        <button
+        <Button
+          variant="outline"
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-medium text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors transition-smooth"
         >
+          <Upload className="size-4" />
           导入 JSON
-        </button>
+        </Button>
         <input
           ref={fileInputRef}
           type="file"
@@ -141,131 +161,137 @@ export default function DictionaryPage() {
             if (f) handleImport(f);
           }}
         />
-        <button
-          onClick={handleExport}
-          className="rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-medium text-text-secondary hover:bg-elevated hover:text-text-primary transition-colors transition-smooth"
-        >
+        <Button variant="outline" onClick={handleExport}>
+          <Download className="size-4" />
           导出 JSON
-        </button>
+        </Button>
       </div>
 
       {/* Add new entry */}
-      <div className="mb-6 animate-fade-in-up delay-2 rounded-2xl border border-border bg-surface p-5">
-        <h3 className="mb-4 font-display text-sm font-semibold text-text-secondary">添加新词条</h3>
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <label className="mb-1.5 block text-xs text-text-muted">错误文字</label>
-            <input
-              type="text"
-              value={newWrong}
-              onChange={(e) => setNewWrong(e.target.value)}
-              placeholder="如：生同"
-              className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-amber/40"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="mb-1.5 block text-xs text-text-muted">正确文字</label>
-            <input
-              type="text"
-              value={newCorrect}
-              onChange={(e) => setNewCorrect(e.target.value)}
-              placeholder="如：生酮"
-              className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-amber/40"
-            />
-          </div>
-          <div className="w-32">
-            <label className="mb-1.5 block text-xs text-text-muted">类别</label>
-            <select
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              className="w-full rounded-lg border border-border bg-elevated px-2.5 py-2 text-sm text-text-secondary outline-none focus:border-amber/40"
+      <Card className="mb-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold text-muted-foreground">添加新词条</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <Label className="mb-1.5">错误文字</Label>
+              <Input
+                type="text"
+                value={newWrong}
+                onChange={(e) => setNewWrong(e.target.value)}
+                placeholder="如：生同"
+              />
+            </div>
+            <div className="flex-1">
+              <Label className="mb-1.5">正确文字</Label>
+              <Input
+                type="text"
+                value={newCorrect}
+                onChange={(e) => setNewCorrect(e.target.value)}
+                placeholder="如：生酮"
+              />
+            </div>
+            <div className="w-32">
+              <Label className="mb-1.5">类别</Label>
+              <Select value={newCategory} onValueChange={setNewCategory}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">通用</SelectItem>
+                  <SelectItem value="name">人名</SelectItem>
+                  <SelectItem value="technical">技术</SelectItem>
+                  <SelectItem value="brand">品牌</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={handleAdd}
+              disabled={adding || !newWrong.trim() || !newCorrect.trim()}
             >
-              <option value="general">通用</option>
-              <option value="name">人名</option>
-              <option value="technical">技术</option>
-              <option value="brand">品牌</option>
-            </select>
+              <Plus className="size-4" />
+              {adding ? '添加中...' : '添加'}
+            </Button>
           </div>
-          <button
-            onClick={handleAdd}
-            disabled={adding || !newWrong.trim() || !newCorrect.trim()}
-            className="rounded-xl bg-amber px-6 py-2 text-sm font-medium text-deep hover:bg-amber/90 disabled:bg-elevated disabled:text-text-muted transition-colors transition-smooth"
-          >
-            {adding ? '添加中...' : '添加'}
-          </button>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Error */}
       {error && (
-        <div className="mb-4 animate-slide-down rounded-xl border border-danger/20 bg-danger-surface p-3.5 text-sm text-danger flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-3 text-xs underline opacity-70 hover:opacity-100">
-            关闭
-          </button>
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="size-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>{error}</span>
+            <Button variant="ghost" size="icon-xs" onClick={() => setError(null)}>
+              <X className="size-3.5" />
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Table */}
-      <div className="animate-fade-in-up delay-3 overflow-hidden rounded-2xl border border-border bg-surface">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-border bg-elevated/50">
-            <tr>
-              <th className="px-5 py-3 font-display text-xs font-semibold text-text-muted">错误文字</th>
-              <th className="px-5 py-3 font-display text-xs font-semibold text-text-muted">正确文字</th>
-              <th className="px-5 py-3 font-display text-xs font-semibold text-text-muted">类别</th>
-              <th className="px-5 py-3 font-display text-xs font-semibold text-text-muted">使用次数</th>
-              <th className="px-5 py-3 font-display text-xs font-semibold text-text-muted">添加时间</th>
-              <th className="px-5 py-3 font-display text-xs font-semibold text-text-muted w-20">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>错误文字</TableHead>
+              <TableHead>正确文字</TableHead>
+              <TableHead>类别</TableHead>
+              <TableHead>使用次数</TableHead>
+              <TableHead>添加时间</TableHead>
+              <TableHead className="w-20">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {loading ? (
-              <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-text-muted animate-gentle-pulse">
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
                   加载中...
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-text-muted">
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
                   {search ? '没有匹配的词条' : '暂无词条，在上方添加'}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : (
               filtered.map((entry) => (
-                <tr key={entry.wrong} className="hover:bg-elevated/30 transition-colors transition-smooth">
-                  <td className="px-5 py-3">
-                    <span className="rounded-md bg-danger-surface px-2 py-0.5 text-danger line-through">
+                <TableRow key={entry.wrong}>
+                  <TableCell>
+                    <Badge variant="destructive" className="line-through">
                       {entry.wrong}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className="rounded-md bg-success-surface px-2 py-0.5 text-success">
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className="bg-success/10 text-success border-transparent">
                       {entry.correct}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-text-muted">{entry.category}</td>
-                  <td className="px-5 py-3 font-mono text-text-muted">{entry.frequency}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-text-faint">
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{entry.category}</TableCell>
+                  <TableCell className="font-mono text-muted-foreground">{entry.frequency}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground/50">
                     {new Date(entry.addedAt).toLocaleDateString('zh-CN')}
-                  </td>
-                  <td className="px-5 py-3">
-                    <button
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => handleDelete(entry.wrong)}
-                      className="rounded-lg px-2.5 py-1 text-xs text-danger hover:bg-danger-surface transition-colors transition-smooth"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
                     >
-                      删除
-                    </button>
-                  </td>
-                </tr>
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))
             )}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
 
-      <p className="mt-3 font-mono text-xs text-text-faint">
+      <p className="mt-3 font-mono text-xs text-muted-foreground/50">
         共 {filtered.length} 条{search && entries.length !== filtered.length && ` / 总计 ${entries.length} 条`}
       </p>
     </PageContainer>

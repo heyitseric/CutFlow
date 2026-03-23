@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import PageContainer from '../components/layout/PageContainer';
 import Stepper from '../components/layout/Stepper';
 import SegmentRow from '../components/review/SegmentRow';
@@ -7,6 +8,8 @@ import TimelinePreview from '../components/review/TimelinePreview';
 import { useJobStore, useActiveJob } from '../stores/jobStore';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { getJob } from '../api/client';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 export default function ReviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -82,11 +85,8 @@ export default function ReviewPage() {
       <>
         <Stepper currentStep={2} jobId={id} />
         <PageContainer wide>
-          <div className="flex items-center justify-center py-20 text-text-muted animate-gentle-pulse">
-            <svg className="mr-3 h-5 w-5 animate-spin text-amber" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+          <div className="flex items-center justify-center py-20 text-muted-foreground">
+            <Loader2 className="mr-3 h-5 w-5 animate-spin text-foreground" />
             加载对齐结果...
           </div>
         </PageContainer>
@@ -101,38 +101,44 @@ export default function ReviewPage() {
         {/* Header */}
         <div className="mb-4 animate-fade-in-up">
           <div className="flex items-center justify-between">
-            <h1 className="font-display text-2xl font-bold tracking-tight text-text-primary">
+            <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
               检查匹配结果
             </h1>
             <div className="flex items-center gap-2">
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleKeepAll}
-                className="rounded-lg bg-success/15 px-3.5 py-1.5 text-xs font-medium text-success hover:bg-success/20 transition-colors transition-smooth"
+                className="text-success border-success/30 hover:bg-success/10"
               >
                 全部保留
-              </button>
-              <button
+              </Button>
+              <Button
+                size="sm"
                 onClick={() => navigate(`/export/${id}`)}
-                className="rounded-lg bg-amber px-4 py-1.5 text-xs font-semibold text-deep hover:bg-amber/90 transition-colors transition-smooth"
               >
                 前往导出 →
-              </button>
+              </Button>
             </div>
           </div>
 
           {/* Explanation text */}
-          <p className="mt-2 text-sm text-text-muted leading-relaxed">
+          <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
             以下是脚本和音频的匹配结果。绿色表示匹配准确，黄色需注意，红色建议检查。不需要的段落取消「保留」即可。
           </p>
 
           {/* Summary stats */}
-          <p className="mt-1.5 text-xs text-text-faint">
-            共 <span className="font-mono text-text-secondary">{stats.total}</span> 段
-            {' · '}
-            已保留 <span className="font-mono text-success">{stats.kept}</span>
-            {' · '}
-            已移除 <span className="font-mono text-danger">{stats.removed}</span>
-          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <Badge variant="secondary" className="font-mono">
+              共 {stats.total} 段
+            </Badge>
+            <Badge variant="outline" className="font-mono text-success border-success/30">
+              已保留 {stats.kept}
+            </Badge>
+            <Badge variant="outline" className="font-mono text-danger border-danger/30">
+              已移除 {stats.removed}
+            </Badge>
+          </div>
         </div>
 
         {/* Segment rows */}
