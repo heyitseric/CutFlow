@@ -11,6 +11,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 当同一个问题反复出现时，说明根因没找对，需要换思路而非继续修补
 - 思考起点永远是"用户最终要什么结果"，倒推出技术实现
 
+## 可替换性原则
+
+新增功能时，时刻记住项目中的每个组件都是可替换的，必须做抽象层。具体来说：
+
+- 新增 provider（转录、匹配、导出等）时，先定义 ABC 接口，再写具体实现
+- 不要把某个第三方服务的特有逻辑写死在业务代码里，通过抽象层隔离
+- 现有的 Provider 模式（`providers/base.py` → `providers/config.py` 工厂）是标准做法，新功能应遵循同样的模式
+
 ## Project Overview
 
 CutFlow — 口播视频智能粗剪工具。Takes a voiceover script (Markdown) + audio recording, aligns them via transcription and matching, lets the user review/edit segments in a web UI, then exports EDL/FCPXML/SRT timelines for Premiere, Final Cut Pro, DaVinci Resolve, and 剪映.

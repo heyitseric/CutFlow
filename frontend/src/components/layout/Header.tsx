@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { getHealthStatus } from '../../api/client';
-import { Package, BookOpen, Settings } from 'lucide-react';
+import { useTheme } from '../../hooks/useTheme';
+import { Package, BookOpen, Settings, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type ConfigStatus = 'none' | 'partial' | 'full';
@@ -13,6 +14,7 @@ export default function Header() {
   const isSettings = location.pathname === '/settings';
 
   const [configStatus, setConfigStatus] = useState<ConfigStatus>('none');
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     getHealthStatus()
@@ -49,6 +51,16 @@ export default function Header() {
         </Link>
 
         <nav className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleTheme}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={theme === 'light' ? '切换暗色模式' : '切换亮色模式'}
+          >
+            {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+          </Button>
+          <div className="mx-1 h-4 w-px bg-border" />
           <Button
             variant="ghost"
             size="sm"
