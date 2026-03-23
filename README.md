@@ -120,6 +120,19 @@ cd ~/Desktop/CutFlow
 
 ---
 
+## 卸载
+
+如果不再需要 CutFlow，在终端运行：
+
+```bash
+cd ~/Desktop/CutFlow
+./uninstall.sh
+```
+
+这会清理所有安装的依赖（约 1.4 GB），项目源码不受影响。如需彻底删除，直接把整个 CutFlow 文件夹拖到废纸篓即可。
+
+---
+
 ## 常见问题
 
 **Q: 支持哪些音频格式？**
