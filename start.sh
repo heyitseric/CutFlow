@@ -17,10 +17,17 @@ echo ""
 echo -e "${AMBER}◉  A-Roll 粗剪工具${NC}"
 echo -e "${DIM}───────────────────────────${NC}"
 
-# Check .env
-if [ ! -f .env ] || ! grep -q 'ARK_API_KEY=.' .env 2>/dev/null; then
-  echo -e "${RED}✗ 未检测到 API Key，请先编辑 .env 文件${NC}"
-  exit 1
+# Ensure .env exists
+if [ ! -f .env ]; then
+  if [ -f .env.example ]; then
+    cp .env.example .env
+    echo -e "${AMBER}→ 已创建 .env 配置文件${NC}"
+  fi
+fi
+
+# Friendly reminder (not a blocker)
+if ! grep -q 'ARK_API_KEY=.' .env 2>/dev/null; then
+  echo -e "${AMBER}→ 未检测到 API Key，启动后请在「设置」页面中填写${NC}"
 fi
 
 # Check backend venv
