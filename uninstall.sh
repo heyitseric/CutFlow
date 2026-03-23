@@ -50,6 +50,8 @@ fi
 find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
 find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null
 rm -rf backend/data/.mpl_cache 2>/dev/null
+rm -rf frontend/.vite 2>/dev/null
+rm -rf .coverage htmlcov 2>/dev/null
 
 if [ "$cleaned" = true ]; then
   echo -e "${GREEN}✓${NC} 依赖和缓存已清理"
