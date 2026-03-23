@@ -151,11 +151,11 @@ MP3、WAV、M4A、AAC 等常见格式都支持。
 
 ## 技术信息
 
-- 前端：React + TypeScript + Tailwind CSS
+- 前端：React + TypeScript + Tailwind CSS + shadcn/ui
 - 后端：Python + FastAPI
 - 转录：WhisperX（本地）/ 火山引擎 Caption API（云端）
 - 智能匹配：兼容 OpenAI 接口的大语言模型
-- 时间线生成：OpenTimelineIO
+- 时间线生成：EDL / FCPXML / SRT 自研生成器
 
 ---
 
