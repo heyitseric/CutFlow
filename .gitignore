@@ -19,9 +19,10 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 
-# Data (uploads & outputs)
+# Data (uploads, outputs & dictionary)
 backend/data/uploads/
 backend/data/outputs/
+backend/data/dictionary/
 
 # IDE
 .vscode/
@@ -44,3 +45,6 @@ backend/data/.mpl_cache/
 .claude/
 agent-handoff-notes.md
 CLAUDE.md
+
+# Presentation
+cutflow-presentation/
