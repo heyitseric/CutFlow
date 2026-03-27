@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 from pathlib import Path
 from typing import Optional
 
@@ -8,16 +7,14 @@ from rapidfuzz import fuzz
 
 from app.models.schemas import MatchResult
 from app.providers.base import Matcher
+from app.utils.text_normalize import clean_for_matching
 
 logger = logging.getLogger(__name__)
-
-# Punctuation / whitespace to strip when computing character counts
-_STRIP_RE = re.compile(r"[\s\u3000，。！？、；：\u201c\u201d\u2018\u2019《》（）【】…\u2014\-,.!?;:\"'()\[\]]+")
 
 
 def _clean_text(text: str) -> str:
     """Remove punctuation and whitespace for character-level comparison."""
-    return _STRIP_RE.sub("", text)
+    return clean_for_matching(text)
 
 
 class RapidFuzzMatcher(Matcher):

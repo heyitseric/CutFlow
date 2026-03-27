@@ -14,6 +14,7 @@ interface SegmentRowProps {
   onTogglePlay: (start: number, end: number) => void;
   onToggleKeep: (index: number) => void;
   isKept: boolean;
+  saveStatus?: 'saving' | 'saved' | 'error' | null;
 }
 
 export default function SegmentRow({
@@ -24,6 +25,7 @@ export default function SegmentRow({
   onTogglePlay,
   onToggleKeep,
   isKept,
+  saveStatus,
 }: SegmentRowProps) {
   const level = getConfidenceLevel(segment.confidence);
   const pct = Math.round(segment.confidence);
@@ -98,6 +100,14 @@ export default function SegmentRow({
           >
             {pct}%
           </Badge>
+
+          {/* Save status indicator */}
+          {saveStatus === 'saving' && (
+            <span className="text-[10px] text-muted-foreground" title="保存中...">...</span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="text-[10px] text-danger" title="保存失败，请检查网络">!</span>
+          )}
 
           {/* Checkbox toggle */}
           <label

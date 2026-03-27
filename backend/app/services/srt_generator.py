@@ -265,7 +265,7 @@ async def precompute_srt_segments(
                 max_chars=settings.SRT_MAX_CHARS_PER_SEGMENT,
                 min_chars=settings.SRT_MIN_CHARS_PER_SEGMENT,
             )
-        except SRTSegmentationError:
+        except (SRTSegmentationError, ValueError):
             cache[text] = split_by_rules(
                 text,
                 max_chars=settings.SRT_MAX_CHARS_PER_SEGMENT,
@@ -307,18 +307,20 @@ async def generate_srt(
         return ""
 
     # Use cache if available, otherwise fall back to LLM segmenter
+    settings = get_settings()
+    from_cache: set[str] = set()
     if segment_cache is not None:
         segmented_groups: list[list[str]] = []
         for _group, _rec_start, text in prepared_groups:
             cached = segment_cache.get(text.strip())
             if cached is not None:
                 segmented_groups.append(cached)
+                from_cache.add(text.strip())
             else:
-                _settings = get_settings()
                 segmented_groups.append(split_by_rules(
                     text,
-                    max_chars=_settings.SRT_MAX_CHARS_PER_SEGMENT,
-                    min_chars=_settings.SRT_MIN_CHARS_PER_SEGMENT,
+                    max_chars=settings.SRT_MAX_CHARS_PER_SEGMENT,
+                    min_chars=settings.SRT_MIN_CHARS_PER_SEGMENT,
                 ))
     else:
         if segmenter is None:
@@ -332,15 +334,25 @@ async def generate_srt(
 
     srt_lines: list[str] = []
     subtitle_num = 1
-    settings = get_settings()
 
     for (group, rec_start, text), raw_segments in zip(prepared_groups, segmented_groups):
-        validated_segments = _validate_llm_segments(text, raw_segments)
-        validated_segments = enforce_segment_limits(
-            validated_segments,
-            max_chars=settings.SRT_MAX_CHARS_PER_SEGMENT,
-            min_chars=settings.SRT_MIN_CHARS_PER_SEGMENT,
-        )
+        # Cache hits were already validated+enforced in precompute_srt_segments
+        if text.strip() in from_cache:
+            validated_segments = raw_segments
+        else:
+            try:
+                validated_segments = _validate_llm_segments(text, raw_segments)
+                validated_segments = enforce_segment_limits(
+                    validated_segments,
+                    max_chars=settings.SRT_MAX_CHARS_PER_SEGMENT,
+                    min_chars=settings.SRT_MIN_CHARS_PER_SEGMENT,
+                )
+            except (SRTSegmentationError, ValueError):
+                validated_segments = split_by_rules(
+                    text,
+                    max_chars=settings.SRT_MAX_CHARS_PER_SEGMENT,
+                    min_chars=settings.SRT_MIN_CHARS_PER_SEGMENT,
+                )
         for seg_start, seg_end, subtitle_text in _build_timed_subtitles(
             group,
             rec_start,

@@ -23,8 +23,9 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
 warnings.filterwarnings("ignore", category=UserWarning, module="torchaudio")
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # Load .env from project root (two levels up from app/)
@@ -61,6 +62,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Global exception handler — catch unhandled errors and return a clean JSON
+# response instead of leaking internal stack traces.
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "服务器内部错误，请稍后重试"},
+    )
+
 
 # Include routers
 app.include_router(upload.router)

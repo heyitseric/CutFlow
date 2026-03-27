@@ -15,12 +15,9 @@ from app.models.schemas import (
     TranscriptionResult,
     ScriptSentence,
 )
+from app.utils.text_normalize import clean_for_matching
 
 logger = logging.getLogger(__name__)
-
-_ALIGN_CLEAN_RE = re.compile(
-    r"[\s\u3000，。！？、；：\u201c\u201d\u2018\u2019《》（）【】…\u2014\-,.!?;:\"'()\[\]]+"
-)
 
 # ---------------------------------------------------------------------------
 # Hook / copy detection
@@ -92,7 +89,7 @@ def _classify_confidence(score: float) -> ConfidenceLevel:
 
 
 def _clean_alignment_text(text: str) -> str:
-    return _ALIGN_CLEAN_RE.sub("", text)
+    return clean_for_matching(text)
 
 
 def _edge_similarity(

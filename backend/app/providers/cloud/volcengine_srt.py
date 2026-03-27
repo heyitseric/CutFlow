@@ -23,7 +23,6 @@ class VolcEngineSRTSegmenter:
         )
         self.model = settings.SRT_SEGMENTATION_MODEL
         self.batch_size = max(1, settings.SRT_SEGMENTATION_BATCH_SIZE)
-        self.max_chars = settings.SRT_MAX_CHARS_PER_SEGMENT
 
     @staticmethod
     def _parse_json_response(content: str) -> list[dict]:
@@ -40,6 +39,7 @@ class VolcEngineSRTSegmenter:
         return parsed
 
     def _build_prompt(self, items: list[dict]) -> str:
+        max_chars = get_settings().SRT_MAX_CHARS_PER_SEGMENT
         payload = json.dumps(items, ensure_ascii=False)
         return (
             "你是一名专业的中文字幕分段助手。"
@@ -48,8 +48,8 @@ class VolcEngineSRTSegmenter:
             "1. 只能按原文切分，绝对不能增字、删字、改字、改标点。\n"
             "2. 必须保持原文顺序，所有分段拼接后要和原文完全一致。\n"
             "3. 优先按自然停顿、短语和语义边界切分。\n"
-            f"4. 每段尽量不超过{self.max_chars}个汉字，必要时可略超，但禁止机械硬切。\n"
-            f"5. 如果原文短于{self.max_chars}个字符，保留单段；否则必须分段。\n"
+            f"4. 每段尽量不超过{max_chars}个汉字，必要时可略超，但禁止机械硬切。\n"
+            f"5. 如果原文短于{max_chars}个字符，保留单段；否则必须分段。\n"
             "6. 只返回 JSON 数组，不要解释，不要 Markdown。\n\n"
             "输出格式：\n"
             '[{"id":0,"segments":["第一段","第二段"]}]\n\n'
@@ -79,6 +79,7 @@ class VolcEngineSRTSegmenter:
                     model=self.model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.0,
+                    timeout=60,
                 )
             except Exception as exc:
                 raise SRTSegmentationError(f"Seed SRT 分段调用失败: {exc}") from exc

@@ -1,10 +1,10 @@
 import copy
 import logging
-import re
 
 from rapidfuzz import fuzz
 
 from app.models.schemas import AlignedSegment, SegmentStatus, TranscriptionResult
+from app.utils.text_normalize import clean_for_matching
 
 logger = logging.getLogger(__name__)
 
@@ -14,14 +14,11 @@ _ACTIVE_STATUSES = {
     SegmentStatus.APPROVED,
 }
 
-_CLEAN_RE = re.compile(
-    r"[\s\u3000，。！？、；：\u201c\u201d\u2018\u2019《》（）【】…\u2014\-,.!?;:\"'()\[\]]+"
-)
 _CLAUSE_PUNCT = "，,；;：:。！？!?"
 
 
 def _clean_text(text: str) -> str:
-    return _CLEAN_RE.sub("", text)
+    return clean_for_matching(text)
 
 
 def _split_script_clauses(text: str) -> list[str]:

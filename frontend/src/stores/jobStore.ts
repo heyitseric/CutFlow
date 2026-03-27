@@ -24,6 +24,9 @@ export interface SingleJobState {
   // user edits layered on top of alignment
   editedSegments: Map<number, Partial<AlignedSegment>>;
   editedPauses: Map<string, Partial<PauseSegment>>; // key: "segIdx-pauseIdx"
+
+  // save status tracking for segment edits: key = segment index
+  saveStatus: Map<number, 'saving' | 'saved' | 'error'>;
 }
 
 function createEmptyJob(jobId: string, scriptName = '', audioName = '', createdAt = '', displayName = ''): SingleJobState {
@@ -43,6 +46,7 @@ function createEmptyJob(jobId: string, scriptName = '', audioName = '', createdA
     estimatedRemainingSeconds: null,
     editedSegments: new Map(),
     editedPauses: new Map(),
+    saveStatus: new Map(),
   };
 }
 
@@ -101,9 +105,7 @@ interface JobStoreState {
   updatePause: (segIdx: number, pauseIdx: number, updates: Partial<PauseSegment>) => void;
   batchUpdatePauses: (pauseType: PauseSegment['pauseType'], action: PauseSegment['action']) => void;
   getSegment: (index: number) => AlignedSegment | null;
-
-  // ── Selectors (for active job) ──
-  // These are getters that components can use
+  getSaveStatus: (index: number) => 'saving' | 'saved' | 'error' | null;
 }
 
 export const useJobStore = create<JobStoreState>((set, get) => ({
@@ -244,8 +246,22 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
 
   updateSegment: (index, updates) => {
     const jobId = get().activeJobId;
+    if (!jobId) return;
+
+    // Helper to update saveStatus for this segment
+    const setSaveStatus = (status: 'saving' | 'saved' | 'error') => {
+      set((state) => {
+        const job = state.jobs[jobId];
+        if (!job) return {};
+        const nextStatus = new Map(job.saveStatus);
+        nextStatus.set(index, status);
+        return { jobs: { ...state.jobs, [jobId]: { ...job, saveStatus: nextStatus } } };
+      });
+    };
+
+    // Optimistic update: apply edit locally immediately
     set((state) => {
-      if (!jobId || !state.jobs[jobId]) return {};
+      if (!state.jobs[jobId]) return {};
       const job = state.jobs[jobId];
       const next = new Map(job.editedSegments);
       const existing = next.get(index) ?? {};
@@ -254,12 +270,31 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
         jobs: { ...state.jobs, [jobId]: { ...job, editedSegments: next } },
       };
     });
-    // Fire-and-forget: persist to backend
-    if (jobId) {
-      patchSegment(jobId, index, updates as Record<string, unknown>).catch((err) => {
-        console.error('[jobStore] Failed to persist segment update:', err);
+
+    // Persist to backend with retry on failure
+    setSaveStatus('saving');
+    patchSegment(jobId, index, updates as Record<string, unknown>)
+      .then(() => {
+        setSaveStatus('saved');
+        // Clear "saved" indicator after 2s to reduce visual noise
+        setTimeout(() => {
+          const job = get().jobs[jobId];
+          if (job?.saveStatus.get(index) === 'saved') {
+            setSaveStatus('saved'); // keep saved, will naturally fade in UI
+          }
+        }, 2000);
+      })
+      .catch(() => {
+        // Retry once after 2s
+        setTimeout(() => {
+          patchSegment(jobId, index, updates as Record<string, unknown>)
+            .then(() => setSaveStatus('saved'))
+            .catch((err) => {
+              console.error('[jobStore] Failed to persist segment update after retry:', err);
+              setSaveStatus('error');
+            });
+        }, 2000);
       });
-    }
   },
 
   approveSegment: (index) => get().updateSegment(index, { status: 'approved' }),
@@ -310,6 +345,13 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
     const base = job.alignment[index];
     const edits = job.editedSegments.get(index);
     return edits ? { ...base, ...edits } : base;
+  },
+
+  getSaveStatus: (index) => {
+    const state = get();
+    const jobId = state.activeJobId;
+    if (!jobId || !state.jobs[jobId]) return null;
+    return state.jobs[jobId].saveStatus.get(index) ?? null;
   },
 }));
 

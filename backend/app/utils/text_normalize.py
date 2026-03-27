@@ -36,6 +36,20 @@ _ABBREVIATIONS = {
 }
 
 
+def clean_for_matching(text: str) -> str:
+    """
+    Unified text cleaning for all matching/alignment operations.
+
+    Strips punctuation (Chinese + English), whitespace, and normalizes unicode.
+    All matching-related modules should use this single function instead of
+    maintaining their own cleaning regexes.
+    """
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFKC", text)
+    return _PUNCT_PATTERN.sub("", text)
+
+
 def normalize_text(text: str) -> str:
     """
     Normalize text for comparison:

@@ -170,10 +170,11 @@ def split_by_rules(
 
     # --- Final validation ---
     reconstructed = "".join(segments)
-    assert reconstructed == text, (
-        f"Text reconstruction failed: "
-        f"expected {len(text)} chars, got {len(reconstructed)} chars"
-    )
+    if reconstructed != text:
+        raise ValueError(
+            f"Text reconstruction failed: "
+            f"expected {len(text)} chars, got {len(reconstructed)} chars"
+        )
 
     return segments
 
@@ -216,10 +217,11 @@ def enforce_segment_limits(
 
     # --- Final validation ---
     reconstructed = "".join(result)
-    assert reconstructed == original_text, (
-        f"Text reconstruction failed after enforce_segment_limits: "
-        f"expected {len(original_text)} chars, got {len(reconstructed)} chars"
-    )
+    if reconstructed != original_text:
+        raise ValueError(
+            f"Text reconstruction failed after enforce_segment_limits: "
+            f"expected {len(original_text)} chars, got {len(reconstructed)} chars"
+        )
 
     logger.debug(
         "enforce_segment_limits: %d segments -> %d segments",

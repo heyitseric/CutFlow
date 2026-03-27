@@ -19,6 +19,7 @@ export default function ReviewPage() {
   const setJob = useJobStore((s) => s.setJob);
   const approveSegment = useJobStore((s) => s.approveSegment);
   const rejectSegment = useJobStore((s) => s.rejectSegment);
+  const getSaveStatus = useJobStore((s) => s.getSaveStatus);
 
   const { alignment, audioDuration, editedSegments } = useActiveJob();
 
@@ -153,6 +154,7 @@ export default function ReviewPage() {
               onTogglePlay={(start, end) => toggle(start, end)}
               onToggleKeep={handleToggleKeep}
               isKept={isSegmentKept(seg)}
+              saveStatus={getSaveStatus(i)}
             />
           ))}
         </div>

@@ -2,8 +2,32 @@ import type { AlignedSegment, PauseSegment, JobResponse, JobSummary, SSEStatusDa
 
 const BASE = '/api';
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+/** Default timeout for regular API requests (30s). */
+const DEFAULT_TIMEOUT_MS = 30_000;
+/** Extended timeout for file uploads (5 min). */
+const UPLOAD_TIMEOUT_MS = 5 * 60_000;
+
+async function fetchWithTimeout(
+  url: string,
+  options?: RequestInit & { timeoutMs?: number },
+): Promise<Response> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchOpts } = options ?? {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...fetchOpts, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(`请求超时（${Math.round(timeoutMs / 1000)}秒），请检查网络连接`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const res = await fetchWithTimeout(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     cache: 'no-store',
     ...options,
@@ -34,9 +58,10 @@ export async function uploadJob(
   form.append('audio', audioFile);
   form.append('provider', provider);
 
-  const res = await fetch(`${BASE}/upload`, {
+  const res = await fetchWithTimeout(`${BASE}/upload`, {
     method: 'POST',
     body: form,
+    timeoutMs: UPLOAD_TIMEOUT_MS,
   });
   if (!res.ok) {
     const body = await res.text();
@@ -282,7 +307,7 @@ export function getExportDownloadUrl(jobId: string, format: string): string {
 
 export async function downloadExportFile(jobId: string, format: string, baseName?: string): Promise<void> {
   const url = getExportDownloadUrl(jobId, format);
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, { timeoutMs: UPLOAD_TIMEOUT_MS });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Download failed ${res.status}: ${body}`);

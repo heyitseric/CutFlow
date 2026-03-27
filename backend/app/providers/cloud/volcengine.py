@@ -71,6 +71,7 @@ class VolcEngineTranscriber(Transcriber):
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
+                timeout=60,
             )
             corrected_text = response.choices[0].message.content.strip()
 
@@ -318,6 +319,7 @@ class VolcEngineMatcher(Matcher):
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
+                timeout=60,
             )
             content = response.choices[0].message.content.strip()
             matches_data = self._parse_json_response(content)
@@ -447,9 +449,30 @@ class VolcEngineMatcher(Matcher):
             best_coverage = coverage
             best_indices = (result.transcript_start_word_idx, result.transcript_end_word_idx)
 
+            # Try expanding end_seg_index by 1-2 (captures truncated tail)
             for expand in range(1, 3):
                 expanded = self._seg_range_to_word_indices(
                     int(start_seg), int(end_seg) + expand, all_words
+                )
+                if expanded is None:
+                    break
+                exp_words = all_words[expanded[0]:expanded[1]]
+                exp_text = "".join(w["word"] for w in exp_words)
+                exp_chars = set(exp_text.replace(" ", ""))
+                exp_overlap = len(script_chars & exp_chars)
+                exp_coverage = exp_overlap / len(script_chars) if script_chars else 1.0
+
+                if exp_coverage > best_coverage:
+                    best_coverage = exp_coverage
+                    best_indices = expanded
+
+            # Try expanding start_seg_index backward by 1-2 (captures truncated head)
+            for expand in range(1, 3):
+                new_start = int(start_seg) - expand
+                if new_start < 0:
+                    break
+                expanded = self._seg_range_to_word_indices(
+                    new_start, int(end_seg), all_words
                 )
                 if expanded is None:
                     break
