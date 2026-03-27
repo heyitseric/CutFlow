@@ -37,6 +37,7 @@ async def test_volcengine_srt_segmenter_batches_requests(monkeypatch):
             CLOUD_BASE_URL="https://example.com",
             SRT_SEGMENTATION_MODEL="doubao-seed-2.0-lite",
             SRT_SEGMENTATION_BATCH_SIZE=20,
+            SRT_MAX_CHARS_PER_SEGMENT=15,
         ),
     )
 
@@ -72,6 +73,7 @@ async def test_volcengine_srt_segmenter_rejects_missing_items(monkeypatch):
             CLOUD_BASE_URL="https://example.com",
             SRT_SEGMENTATION_MODEL="doubao-seed-2.0-lite",
             SRT_SEGMENTATION_BATCH_SIZE=20,
+            SRT_MAX_CHARS_PER_SEGMENT=15,
         ),
     )
 

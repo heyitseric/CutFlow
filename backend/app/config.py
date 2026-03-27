@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     CLOUD_MODEL: str = "doubao-seed-2.0-lite"
     SRT_SEGMENTATION_MODEL: str = "doubao-seed-2.0-lite"
     SRT_SEGMENTATION_BATCH_SIZE: int = 20
+    SRT_MAX_CHARS_PER_SEGMENT: int = 15   # 每段字幕最大字符数
+    SRT_MIN_CHARS_PER_SEGMENT: int = 5    # 低于此值自动合并到相邻段
 
     # Volcengine Caption API (cloud transcription)
     VOLCENGINE_CAPTION_APPID: str = ""

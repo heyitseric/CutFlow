@@ -183,19 +183,19 @@ async def test_generate_srt_uses_clip_text_coverage_for_timing():
             clip_index=0,
             start_time=0.0,
             end_time=1.0,
-            script_text="大家好今天讲一本书",
-            transcript_text="大家好",
+            script_text="大家好朋友们今天讲一本好书",
+            transcript_text="大家好朋友们",
         ),
         ExportClip(
             script_index=0,
             clip_index=1,
             start_time=1.0,
             end_time=3.0,
-            script_text="大家好今天讲一本书",
-            transcript_text="今天讲一本书",
+            script_text="大家好朋友们今天讲一本好书",
+            transcript_text="今天讲一本好书",
         ),
     ]
-    segmenter = _StaticSegmenter([["大家好", "今天讲一本书"]])
+    segmenter = _StaticSegmenter([["大家好朋友们", "今天讲一本好书"]])
 
     srt = await generate_srt(
         segments,
@@ -224,3 +224,50 @@ async def test_generate_srt_rejects_invalid_llm_segments():
             segments,
             segmenter=_StaticSegmenter([["大家好", "今天"]]),
         )
+
+
+@pytest.mark.asyncio
+async def test_generate_srt_fallback_segments_long_text_when_cache_misses():
+    """When text is not in cache, split_by_rules should segment it instead of leaving as single segment."""
+    long_text = "今天我们来讲一下，如何通过饮食调整改善睡眠质量。"
+    segments = [
+        ExportClip(
+            script_index=0,
+            clip_index=0,
+            start_time=0.0,
+            end_time=4.0,
+            script_text=long_text,
+        )
+    ]
+    # Pass a cache that does NOT contain this text
+    srt = await generate_srt(segments, segment_cache={})
+
+    # Should be segmented (not a single long subtitle)
+    timecodes = _extract_timecodes(srt)
+    assert len(timecodes) > 1, f"Expected multiple segments for {len(long_text)}-char text, got {len(timecodes)}"
+    # Verify all text is present
+    srt_text = "\n".join(line for line in srt.split("\n") if line and not line[0].isdigit() and "-->" not in line)
+    assert "".join(srt_text.split("\n")) == long_text
+
+
+@pytest.mark.asyncio
+async def test_generate_srt_enforces_max_chars_on_llm_segments():
+    """Even if LLM returns a valid but oversized segment, enforce_segment_limits should split it."""
+    text = "今天我们来讲一下如何通过饮食和作息调整改善睡眠质量大家来看一看"
+    segments = [
+        ExportClip(
+            script_index=0,
+            clip_index=0,
+            start_time=0.0,
+            end_time=4.0,
+            script_text=text,
+        )
+    ]
+    # LLM returns the whole thing as one segment (doesn't segment)
+    segmenter = _StaticSegmenter([[text]])
+
+    srt = await generate_srt(segments, segmenter=segmenter)
+    timecodes = _extract_timecodes(srt)
+
+    # enforce_segment_limits should have split this
+    assert len(timecodes) > 1, f"Expected split for {len(text)}-char text"

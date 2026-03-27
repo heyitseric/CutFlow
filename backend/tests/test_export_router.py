@@ -69,6 +69,7 @@ async def test_export_job_returns_clear_error_when_srt_segmentation_fails(
         ],
         audio_filename="demo.wav",
         export_files=[],
+        srt_segment_cache=None,
     )
 
     class _Manager:

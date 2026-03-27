@@ -2,11 +2,13 @@ import logging
 import unicodedata
 from typing import Protocol
 
+from app.config import get_settings
 from app.models.schemas import ExportClip
 from app.providers.cloud.volcengine_srt import (
     SRTSegmentationError,
     VolcEngineSRTSegmenter,
 )
+from app.services.srt_segmenter_rules import enforce_segment_limits, split_by_rules
 from app.utils.timecode import seconds_to_srt_time
 
 logger = logging.getLogger(__name__)
@@ -253,14 +255,22 @@ async def precompute_srt_segments(
 
     segmented = await segmenter.segment_texts(active_texts)
 
+    settings = get_settings()
     cache: dict[str, list[str]] = {}
     for text, segs in zip(active_texts, segmented):
         try:
             validated = _validate_llm_segments(text, segs)
-            cache[text] = validated
+            cache[text] = enforce_segment_limits(
+                validated,
+                max_chars=settings.SRT_MAX_CHARS_PER_SEGMENT,
+                min_chars=settings.SRT_MIN_CHARS_PER_SEGMENT,
+            )
         except SRTSegmentationError:
-            # Fallback: keep original text as single segment
-            cache[text] = [text]
+            cache[text] = split_by_rules(
+                text,
+                max_chars=settings.SRT_MAX_CHARS_PER_SEGMENT,
+                min_chars=settings.SRT_MIN_CHARS_PER_SEGMENT,
+            )
 
     logger.info("Pre-computed SRT segments for %d unique texts", len(cache))
     return cache
@@ -304,8 +314,12 @@ async def generate_srt(
             if cached is not None:
                 segmented_groups.append(cached)
             else:
-                # Text not in cache (e.g. user edited during review) — single segment fallback
-                segmented_groups.append([text])
+                _settings = get_settings()
+                segmented_groups.append(split_by_rules(
+                    text,
+                    max_chars=_settings.SRT_MAX_CHARS_PER_SEGMENT,
+                    min_chars=_settings.SRT_MIN_CHARS_PER_SEGMENT,
+                ))
     else:
         if segmenter is None:
             segmenter = VolcEngineSRTSegmenter()
@@ -318,9 +332,15 @@ async def generate_srt(
 
     srt_lines: list[str] = []
     subtitle_num = 1
+    settings = get_settings()
 
     for (group, rec_start, text), raw_segments in zip(prepared_groups, segmented_groups):
         validated_segments = _validate_llm_segments(text, raw_segments)
+        validated_segments = enforce_segment_limits(
+            validated_segments,
+            max_chars=settings.SRT_MAX_CHARS_PER_SEGMENT,
+            min_chars=settings.SRT_MIN_CHARS_PER_SEGMENT,
+        )
         for seg_start, seg_end, subtitle_text in _build_timed_subtitles(
             group,
             rec_start,
