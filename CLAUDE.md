@@ -122,14 +122,25 @@ Upload (script.md + audio) → POST /api/upload → Background job
 
 用户可能在不同的 Mac 电脑上工作（家里/公司）。代码通过 GitHub (`heyitseric/CutFlow`) 同步。
 
+### 分支命名规范
+
+| 前缀 | 用途 | 例子 |
+|------|------|------|
+| `fix/` | 修复 bug | `fix/音频同步偏移` `fix/导出srt乱码` |
+| `feat/` | 新增功能 | `feat/批量导出` `feat/暗色模式` |
+| `refactor/` | 重构代码（功能不变，优化结构） | `refactor/匹配引擎` |
+| `docs/` | 文档改动 | `docs/更新readme` |
+| `style/` | 界面样式调整 | `style/review页面布局` |
+| `test/` | 添加或修改测试 | `test/导出格式测试` |
+
 ### 标准流程：Branch + PR
 
 用户修 bug 或加功能时，始终使用分支，不要直接在 main 上改：
 
 1. **开工前** — `git pull origin main` 拉取最新代码
-2. **创建分支** — `git checkout -b fix/问题描述` 或 `git checkout -b feat/功能描述`
-3. **改完代码后** — 用 `/commit` 提交，选择 push + 创建 PR
-4. **在另一台电脑上** — `git pull origin main` 拉取合并后的代码
+2. **创建分支** — `git checkout -b 前缀/描述`（根据上表选择前缀）
+3. **改完代码后** — 用 `/commit-push-pr` 一步完成提交、推送、创建 PR
+4. **在另一台电脑上** — 在 GitHub 上 Merge PR，然后 `git pull origin main`
 
 ### 常见场景处理
 
