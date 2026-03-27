@@ -44,7 +44,6 @@ backend/data/.mpl_cache/
 # Claude
 .claude/
 agent-handoff-notes.md
-CLAUDE.md
 
 # Presentation
 cutflow-presentation/
