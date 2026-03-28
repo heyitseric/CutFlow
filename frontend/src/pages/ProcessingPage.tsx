@@ -228,7 +228,19 @@ export default function ProcessingPage() {
     if (id) {
       getJob(id).then((job) => {
         if (!cancelled) setJob(job);
-      }).catch(() => {});
+      }).catch((err) => {
+        if (!cancelled) {
+          console.error('Failed to load job:', err);
+          setJob({
+            id,
+            status: 'failed',
+            progress: 0,
+            audioDuration: null,
+            alignment: null,
+            error: err?.message || '加载任务失败，请刷新页面重试',
+          });
+        }
+      });
     }
     return () => { cancelled = true; };
   }, [id, setJob]);

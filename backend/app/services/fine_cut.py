@@ -60,7 +60,7 @@ def _split_script_clauses(text: str) -> list[str]:
 def _flatten_words(transcription: TranscriptionResult) -> list[dict]:
     words: list[dict] = []
     for seg in transcription.segments:
-        for word in seg.words:
+        for word in (seg.words or []):
             words.append(
                 {
                     "word": word.word,

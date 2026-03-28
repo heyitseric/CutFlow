@@ -78,7 +78,7 @@ class TranscriptionService:
                 if wrong in segment.text:
                     segment.text = segment.text.replace(wrong, correct)
                     # Update word-level if applicable
-                    for word in segment.words:
+                    for word in (segment.words or []):
                         if wrong in word.word:
                             word.word = word.word.replace(wrong, correct)
                     # Track frequency

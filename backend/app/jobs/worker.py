@@ -58,7 +58,7 @@ def _overall_progress(stage: int, local_pct: float = 0.0) -> float:
 
 def _estimate_remaining(start_time: float, progress: float) -> Optional[float]:
     """Estimate remaining seconds based on elapsed time and progress so far."""
-    if progress <= 0.01:
+    if progress < 0.01:
         return None
     elapsed = time.monotonic() - start_time
     total_estimated = elapsed / progress

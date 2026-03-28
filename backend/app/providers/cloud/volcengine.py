@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Callable, Optional
 
 from openai import AsyncOpenAI
@@ -164,7 +165,19 @@ class VolcEngineMatcher(Matcher):
             while end > 0 and not lines[end].strip().startswith("```"):
                 end -= 1
             content = "\n".join(lines[1:end])
-        return json.loads(content)
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            # Fallback: try to extract a JSON array via regex
+            match = re.search(r'\[.*\]', content, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group())
+                except json.JSONDecodeError:
+                    pass
+            logger.warning("Failed to parse LLM JSON response: %s", content[:200])
+            raise ValueError(f"无法从 LLM 响应中解析 JSON: {content[:100]}")
 
     def _char_to_word_indices(
         self, start_char: int, end_char: int, all_words: list[dict]
